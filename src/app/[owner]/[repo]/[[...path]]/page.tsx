@@ -8,8 +8,9 @@ import { useScrollToBottom } from "@/components/use-scroll-to-bottom";
 import { ChatInput } from "@/components/chat-input";
 import { motion } from "framer-motion";
 import { DefaultChatTransport } from "ai";
-import { AnimatedEllipsis } from "@/components/misc";
-import type { RepoCheckResponse, StatusResponse, ErrorResponse } from "@/lib/api-models";
+import { AnimatedEllipsis, Spinner } from "@/components/misc";
+import { RepoTree } from "@/components/repo-tree";
+import type { StatusResponse, ErrorResponse } from "@/lib/api-models";
 
 export default function ChatPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function ChatPage() {
   const owner = params.owner as string;
   const repo = params.repo as string;
 
-  const [repoInfo, setRepoInfo] = useState<RepoCheckResponse | null>(null);
+  const [repoInfo, setRepoInfo] = useState<StatusResponse | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [commitSha, setCommitSha] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
@@ -46,12 +47,14 @@ export default function ChatPage() {
   useEffect(() => {
     async function checkAndSync() {
       try {
-        const checkResponse = await fetch(`/api/repos/${owner}/${repo}/check`);
-        const checkData: RepoCheckResponse = await checkResponse.json();
+        const statusResponse = await fetch(`/api/repos/${owner}/${repo}/status`);
+        const statusData: StatusResponse = await statusResponse.json();
 
-        setRepoInfo(checkData);
+        setRepoInfo(statusData);
+        setSyncStatus(statusData.sync_status);
+        setCommitSha(statusData.commit_sha);
 
-        if (!checkData.exists || checkData.is_private) {
+        if (!statusData.exists || statusData.is_private) {
           const syncResponse = await fetch(`/api/repos/${owner}/${repo}/sync`, {
             method: 'POST',
           });
@@ -63,11 +66,11 @@ export default function ChatPage() {
           }
         }
 
-        if (checkData.synced && checkData.sync_status === 'completed') {
+        if (statusData.synced && statusData.sync_status === 'completed') {
           setChatEnabled(true);
           setSyncStatus('completed');
         } else {
-          if (!checkData.synced || checkData.sync_status === 'pending' || checkData.sync_status === 'running') {
+          if (!statusData.synced || statusData.sync_status === 'pending' || statusData.sync_status === 'processing') {
             const syncResponse = await fetch(`/api/repos/${owner}/${repo}/sync`, {
               method: 'POST',
             });
@@ -98,6 +101,7 @@ export default function ChatPage() {
         const statusResponse = await fetch(`/api/repos/${owner}/${repo}/status`);
         const statusData: StatusResponse = await statusResponse.json();
 
+        setRepoInfo(statusData);
         setSyncStatus(statusData.sync_status);
         setCommitSha(statusData.commit_sha);
 
@@ -135,48 +139,54 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-dvh bg-white">
-      <div className="border-b border-neutral-200 px-4 py-3">
-        <div className="max-w-xl min-h-14 px-4 mx-auto flex items-center justify-between">
-          <div className="flex-1">
-            {repoInfo?.repo_info && (
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                  <h1 className="text-xl font-semibold text-zinc-900">
-                    {repoInfo.repo_info.fullName}
-                  </h1>
-                </div>
-                <div className="flex items-center gap-4 text-sm text-zinc-500">
-                  <span>★ {repoInfo.repo_info.stargazersCount.toLocaleString()}</span>
-                  <span>Ψ {repoInfo.repo_info.forksCount.toLocaleString()}</span>
-                  {commitSha && (
-                    <a
-                      href={`${repoInfo.repo_info.htmlUrl}/commit/${commitSha}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-zinc-700 underline"
-                    >
-                      {commitSha.substring(0, 7)}
-                    </a>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 text-sm text-zinc-600 hover:text-zinc-900 border border-neutral-200 rounded-lg hover:border-neutral-300 transition-colors"
-          >
-            Change Repo
-          </button>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-y-scroll">
         <div
           ref={messagesContainerRef}
           className="py-8"
         >
-          <div className="w-full max-w-xl flex flex-col items-start gap-3 mx-auto px-4">
+          <div className="w-full max-w-xl flex flex-col items-start gap-[1em] mx-auto px-4">
+            <div className="flex flex-col w-full font-mono text-sm leading-relaxed">
+              <div className="whitespace-pre font-bold">
+                <a href={repoInfo?.repo_info?.htmlUrl || `https://github.com/${owner}/${repo}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{repoInfo?.repo_info?.fullName || `${owner}/${repo}`}</a>
+              </div>
+              {!repoInfo?.repo_info || (repoInfo.repo_info && !repoInfo.repo_info.stargazersCount && !commitSha && !repoInfo.repo_info.description) ? (
+                <div className="flex items-center gap-2 text-zinc-500 whitespace-pre">
+                  <Spinner />
+                  <span>loading repo</span>
+                </div>
+              ) : (
+                <>
+                  <div className="whitespace-pre">
+                    {repoInfo.repo_info.stargazersCount.toLocaleString()} stars{commitSha ? (
+                      <>
+                        {' | '}
+                        <a
+                          href={`${repoInfo.repo_info.htmlUrl}/commit/${commitSha}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {commitSha.substring(0, 7)}
+                        </a>
+                      </>
+                    ) : ''}
+                  </div>
+                  {repoInfo.repo_info.description && (
+                    <div className="whitespace-pre">
+                      {repoInfo.repo_info.description}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            {repoInfo?.repo_info && !repoInfo?.tree ? (
+              <div className="flex items-center gap-2 text-sm font-mono text-zinc-500">
+                <Spinner />
+                <span>loading files</span>
+              </div>
+            ) : repoInfo?.tree ? (
+              <RepoTree tree={repoInfo.tree} className="w-full" />
+            ) : null}
             {messages.length === 0 && chatEnabled && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}

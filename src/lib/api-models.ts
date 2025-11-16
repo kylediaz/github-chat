@@ -1,3 +1,5 @@
+import type { TreeNode } from './github';
+
 export interface RepoInfo {
   fullName: string;
   description: string | null;
@@ -21,9 +23,16 @@ export interface SyncResponse {
   status: 'pending' | 'up_to_date' | string;
 }
 
+type SyncStatus = 'pending' | 'up_to_date' | 'processing' | 'completed' | 'failed';
+
 export interface StatusResponse {
-  sync_status: string;
-  commit_sha: string;
+  exists: boolean;
+  synced: boolean;
+  sync_status: string | null;
+  is_private: boolean;
+  repo_info: RepoInfo | null;
+  commit_sha: string | null;
+  tree: TreeNode | null;
 }
 
 export interface ErrorResponse {
