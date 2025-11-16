@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, githubRepo, githubRepoCommit, githubSyncSources, githubSyncInvocations } from '@/db';
+import { db, githubRepo, githubRepoCommit, githubRepoTrees, githubSyncSources, githubSyncInvocations } from '@/db';
 import { eq, and, desc } from 'drizzle-orm';
 import { trace } from '@opentelemetry/api';
 import { validateEnv } from '@/lib/env';
-import { getRepository, getBranchCommit } from '@/lib/github';
+import { getRepository, getBranchCommit, getRepositoryTree } from '@/lib/github';
 import { createSource, createInvocation } from '@/lib/chroma';
 import { randomUUID } from 'crypto';
 import type { SyncResponse, ErrorResponse } from '@/lib/api-models';
@@ -156,6 +156,7 @@ export async function POST(
             owner,
             repo,
             sha: ghCommit.sha,
+            treeSha: ghCommit.treeSha,
             message: ghCommit.message,
             authorName: ghCommit.authorName,
             authorDate: ghCommit.authorDate,
@@ -173,6 +174,80 @@ export async function POST(
         span.addEvent('commit_cached', {
           sha: ghCommit.sha.substring(0, 7),
         });
+
+        const existingTree = await db.query.githubRepoTrees.findFirst({
+          where: and(
+            eq(githubRepoTrees.owner, owner),
+            eq(githubRepoTrees.repo, repo),
+            eq(githubRepoTrees.treeSha, ghCommit.treeSha)
+          ),
+        });
+
+        if (!existingTree) {
+          span.addEvent('fetching_tree_from_github', {
+            treeSha: ghCommit.treeSha.substring(0, 7),
+          });
+
+          const ghTree = await getRepositoryTree(owner, repo, ghCommit.treeSha);
+
+          if (ghTree) {
+            await db.insert(githubRepoTrees)
+              .values({
+                owner,
+                repo,
+                treeSha: ghTree.sha,
+                tree: ghTree.tree,
+              })
+              .onConflictDoUpdate({
+                target: [githubRepoTrees.owner, githubRepoTrees.repo, githubRepoTrees.treeSha],
+                set: {
+                  tree: ghTree.tree,
+                },
+              });
+
+            span.addEvent('tree_cached', {
+              treeSha: ghTree.sha.substring(0, 7),
+              entriesCount: ghTree.tree.length,
+            });
+          }
+        }
+      } else if (commitData) {
+        const existingTree = await db.query.githubRepoTrees.findFirst({
+          where: and(
+            eq(githubRepoTrees.owner, owner),
+            eq(githubRepoTrees.repo, repo),
+            eq(githubRepoTrees.treeSha, commitData.treeSha)
+          ),
+        });
+
+        if (!existingTree) {
+          span.addEvent('fetching_tree_from_github', {
+            treeSha: commitData.treeSha.substring(0, 7),
+          });
+
+          const ghTree = await getRepositoryTree(owner, repo, commitData.treeSha);
+
+          if (ghTree) {
+            await db.insert(githubRepoTrees)
+              .values({
+                owner,
+                repo,
+                treeSha: ghTree.sha,
+                tree: ghTree.tree,
+              })
+              .onConflictDoUpdate({
+                target: [githubRepoTrees.owner, githubRepoTrees.repo, githubRepoTrees.treeSha],
+                set: {
+                  tree: ghTree.tree,
+                },
+              });
+
+            span.addEvent('tree_cached', {
+              treeSha: ghTree.sha.substring(0, 7),
+              entriesCount: ghTree.tree.length,
+            });
+          }
+        }
       }
 
       if (!commitData) {

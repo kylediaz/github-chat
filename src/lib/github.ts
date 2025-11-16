@@ -28,10 +28,25 @@ export interface GitHubRepo {
 
 export interface GitHubCommit {
   sha: string;
+  treeSha: string;
   message: string;
   authorName: string;
   authorDate: Date;
   htmlUrl: string;
+}
+
+export interface GitHubTree {
+  sha: string;
+  url?: string;
+  tree: Array<{
+    path: string;
+    mode: string;
+    type: string;
+    size?: number;
+    sha: string;
+    url?: string;
+  }>;
+  truncated: boolean;
 }
 
 export interface GitHubError {
@@ -121,11 +136,14 @@ export async function getBranchCommit(
     });
 
     const commitData = response.data.commit;
+    const treeSha = commitData.commit.tree.sha;
     
     span.setAttribute('commit.sha', commitData.sha.substring(0, 7));
+    span.setAttribute('tree.sha', treeSha.substring(0, 7));
 
     return {
       sha: commitData.sha,
+      treeSha,
       message: commitData.commit.message,
       authorName: commitData.commit.author?.name || 'Unknown',
       authorDate: new Date(commitData.commit.author?.date || Date.now()),
@@ -137,6 +155,58 @@ export async function getBranchCommit(
       return null;
     }
     
+    span.recordException(error);
+    throw error;
+  } finally {
+    span.end();
+  }
+}
+
+export async function getRepositoryTree(
+  owner: string,
+  repo: string,
+  treeSha: string,
+  recursive: boolean = true,
+): Promise<GitHubTree | null> {
+  const span = tracer.startSpan('github.getRepositoryTree');
+  span.setAttributes({
+    'github.owner': owner,
+    'github.repo': repo,
+    'tree.sha': treeSha.substring(0, 7),
+  });
+
+  try {
+    const response = await octokit.request('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', {
+      owner,
+      repo,
+      tree_sha: treeSha,
+      recursive: recursive ? 'true' : 'false',
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    const data = response.data;
+    
+    span.setAttribute('tree.entries_count', data.tree?.length || 0);
+
+    return {
+      sha: data.sha,
+      url: data.url,
+      tree: data.tree || [],
+      truncated: data.truncated || false,
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      span.setAttribute('error.type', 'tree_not_found');
+      return null;
+    }
+
+    if (error.status === 403) {
+      span.setAttribute('error.type', 'private_inaccessible');
+      return null;
+    }
+
     span.recordException(error);
     throw error;
   } finally {

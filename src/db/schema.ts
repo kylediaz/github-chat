@@ -5,6 +5,7 @@ import {
   timestamp,
   integer,
   boolean,
+  jsonb,
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
@@ -43,6 +44,7 @@ export const githubRepoCommit = pgTable(
     owner: text('owner').notNull(),
     repo: text('repo').notNull(),
     sha: text('sha').notNull(),
+    treeSha: text('tree_sha').notNull(),
     message: text('message').notNull(),
     authorName: text('author_name').notNull(),
     authorDate: timestamp('author_date').notNull(),
@@ -57,6 +59,26 @@ export const githubRepoCommit = pgTable(
     ),
     ownerRepoIdx: index('github_repo_commit_owner_repo_idx').on(table.owner, table.repo),
     shaIdx: index('github_repo_commit_sha_idx').on(table.sha),
+  })
+);
+
+export const githubRepoTrees = pgTable(
+  'github_repo_trees',
+  {
+    uuid: uuid('uuid').defaultRandom().primaryKey(),
+    owner: text('owner').notNull(),
+    repo: text('repo').notNull(),
+    treeSha: text('tree_sha').notNull(),
+    tree: jsonb('tree').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    ownerRepoTreeShaIdx: uniqueIndex('github_repo_trees_owner_repo_tree_sha_idx').on(
+      table.owner,
+      table.repo,
+      table.treeSha
+    ),
+    ownerRepoIdx: index('github_repo_trees_owner_repo_idx').on(table.owner, table.repo),
   })
 );
 

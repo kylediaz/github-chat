@@ -2,6 +2,7 @@ import { ChromaClient, CloudClient } from 'chromadb';
 import { ChromaCloudQwenEmbeddingFunction, ChromaCloudQwenEmbeddingModel, ChromaCloudQwenEmbeddingTask } from '@chroma-core/chroma-cloud-qwen';
 import { env } from './env';
 import { trace } from '@opentelemetry/api';
+import { z } from 'zod';
 
 const tracer = trace.getTracer('chroma');
 
@@ -26,10 +27,25 @@ const EMBEDDING_CONFIG = {
   sparse: null,
 } as const;
 
+export const chromaDocumentMetadataSchema = z.object({
+  chunk_strategy: z.enum(['tree_sitter', 'lines', 'str']).optional(),
+  document_key: z.string().optional(),
+  document_key_sha256: z.string().optional(),
+  end_col: z.number().optional(),
+  end_line: z.number().optional(),
+  language: z.string().optional(),
+  start_col: z.number().optional(),
+  start_line: z.number().optional(),
+  version_key: z.string().optional(),
+  version_key_sha256: z.string().optional(),
+});
+
+export type ChromaDocumentMetadata = z.infer<typeof chromaDocumentMetadataSchema>;
+
 export interface QueryResult {
   id: string;
   distance: number;
-  metadata?: Record<string, any>;
+  metadata?: ChromaDocumentMetadata;
   document?: string;
 }
 
@@ -60,10 +76,16 @@ export async function queryCollection(
     
     if (results.ids && results.ids[0]) {
       for (let i = 0; i < results.ids[0].length; i++) {
+        const rawMetadata = results.metadatas?.[0]?.[i];
+        const parseResult = rawMetadata
+          ? chromaDocumentMetadataSchema.safeParse(rawMetadata)
+          : null;
+        const metadata = parseResult?.success ? parseResult.data : undefined;
+
         formattedResults.push({
           id: results.ids[0][i],
           distance: results.distances?.[0]?.[i] || 0,
-          metadata: results.metadatas?.[0]?.[i] || undefined,
+          metadata,
           document: results.documents?.[0]?.[i] || undefined,
         });
       }
