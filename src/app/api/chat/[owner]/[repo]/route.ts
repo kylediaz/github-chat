@@ -61,16 +61,39 @@ export async function POST(
           execute: async ({ query }: { query: string }) => {
             const results = await queryCollection(
               collectionName,
-              `file path: ${query}`,
+              query,
               10
             );
 
+            const groupedByPath = new Map<string, typeof results>();
+            
+            for (const r of results) {
+              const key = r.metadata?.document_key || 'unknown';
+              if (!groupedByPath.has(key)) {
+                groupedByPath.set(key, []);
+              }
+              groupedByPath.get(key)!.push(r);
+            }
+
+            const combinedResults = Array.from(groupedByPath.entries()).map(([path, groupResults]) => {
+              const sorted = groupResults.sort((a, b) => {
+                const aStart = a.metadata?.start_line ?? Infinity;
+                const bStart = b.metadata?.start_line ?? Infinity;
+                return aStart - bStart;
+              });
+
+              const contents = sorted
+                .map((r) => r.document)
+                .filter((doc): doc is string => doc !== undefined);
+              
+              return {
+                path,
+                content: contents.join('...'),
+              };
+            });
+
             return {
-              results: results.map((r) => ({
-                path: r.metadata?.document_key || 'unknown',
-                content: r.document,
-                relevanceScore: 1 - r.distance,
-              })),
+              results: combinedResults,
             };
           },
         }),

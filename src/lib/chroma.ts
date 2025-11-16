@@ -28,16 +28,16 @@ const EMBEDDING_CONFIG = {
 } as const;
 
 export const chromaDocumentMetadataSchema = z.object({
-  chunk_strategy: z.enum(['tree_sitter', 'lines', 'str']).optional(),
-  document_key: z.string().optional(),
-  document_key_sha256: z.string().optional(),
+  chunk_strategy: z.union([z.enum(['tree_sitter', 'lines']), z.string()]).optional(),
+  document_key: z.string(),
+  document_key_sha256: z.string(),
   end_col: z.number().optional(),
   end_line: z.number().optional(),
   language: z.string().optional(),
   start_col: z.number().optional(),
   start_line: z.number().optional(),
-  version_key: z.string().optional(),
-  version_key_sha256: z.string().optional(),
+  version_key: z.string(),
+  version_key_sha256: z.string(),
 });
 
 export type ChromaDocumentMetadata = z.infer<typeof chromaDocumentMetadataSchema>;
@@ -45,8 +45,8 @@ export type ChromaDocumentMetadata = z.infer<typeof chromaDocumentMetadataSchema
 export interface QueryResult {
   id: string;
   distance: number;
-  metadata?: ChromaDocumentMetadata;
-  document?: string;
+  metadata: ChromaDocumentMetadata;
+  document: string;
 }
 
 export async function queryCollection(
@@ -80,13 +80,13 @@ export async function queryCollection(
         const parseResult = rawMetadata
           ? chromaDocumentMetadataSchema.safeParse(rawMetadata)
           : null;
-        const metadata = parseResult?.success ? parseResult.data : undefined;
+        const metadata = parseResult?.success ? parseResult.data : null;
 
         formattedResults.push({
           id: results.ids[0][i],
           distance: results.distances?.[0]?.[i] || 0,
-          metadata,
-          document: results.documents?.[0]?.[i] || undefined,
+          metadata: metadata!,
+          document: results.documents?.[0]?.[i]!,
         });
       }
     }
