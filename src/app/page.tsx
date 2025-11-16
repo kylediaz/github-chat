@@ -1,146 +1,90 @@
 "use client";
 
-import { ReactNode, useMemo, useState } from "react";
-import { useChat } from '@ai-sdk/react';
-import { Message } from "@/components/message";
-import { useScrollToBottom } from "@/components/use-scroll-to-bottom";
-import { ChatInput } from "@/components/chat-input";
+import { useState, FormEvent } from "react";
 import { motion } from "framer-motion";
-import Link from "next/link";
-import { DefaultChatTransport } from "ai";
-import { AnimatedEllipsis } from "@/components/misc";
-
-interface SuggestedAction {
-  title: string;
-  label: string;
-  action: string;
-}
+import { useRouter } from "next/navigation";
 
 export default function Home() {
-  const { messages, sendMessage, status, error } = useChat({
-    transport: new DefaultChatTransport({
-      api: '/api/chat',
-    }),
-  });
+  const [repoUrl, setRepoUrl] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const router = useRouter();
 
-  const [input, setInput] = useState<string>("");
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-  const onSubmit = useMemo(() => async (inputValue: string) => {
-    sendMessage({
-      text: inputValue,
-    });
-    setInput("");
-  }, [sendMessage, setInput]);
+    const trimmedUrl = repoUrl.trim();
+    
+    // Comprehensive regex to match various GitHub URL formats:
+    // - https://github.com/owner/repo
+    // - http://github.com/owner/repo
+    // - www.github.com/owner/repo
+    // - github.com/owner/repo
+    // - /owner/repo
+    // - /owner/repo/
+    // - owner/repo
+    const repoPattern = /^(?:https?:\/\/)?(?:www\.)?(?:github\.com\/)?\/?([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/?/i;
+    const match = trimmedUrl.match(repoPattern);
 
-  const [messagesContainerRef, messagesEndRef] =
-    useScrollToBottom<HTMLDivElement>();
-
-  const suggestedActions: SuggestedAction[] = [
-    { title: "npm/ai", label: "How do I stream responses with AI SDK?", action: "In npm AI SDK, how do I stream responses?" },
-    { title: "pypi/sqlalchemy", label: "When does ORM relationship loading choose selectin vs. joined vs. subquery", action: "In SQLAlchemy, when does ORM relationship loading choose selectin vs. joined vs. subquery" },
-    {
-      title: "pypi/numpy", 
-      label: "What environment variables or compile-time flags switch kernels",
-      action: "In numpy, what environment variables or compile-time flags switch kernels?"
-    },
-    {
-      title: "crates/actix",
-      label: "Actor supervision and child actor management",
-      action: "In Actix, how can actors supervise and manage child actors? What supervision strategies are available?"
-    },
-    {
-      title: "pypi/httpx",
-      label: "Connection pools and HTTP/2 multiplexing connection selection",
-      action: "In httpx, how do connection pools and HTTP/2 multiplexing actually select connections under limits?"
-    },
-    {
-      title: "pypi/jax",
-      label: "Array API compliance behavioral differences",
-      action: "For Array API compliance, what behavioral differences (type promotion, nan semantics, out-of-place ops) must a library document?"
+    if (!match) {
+      setError("Please enter a valid GitHub repository URL or owner/repo");
+      setLoading(false);
+      return;
     }
-  ];
 
-  const backgrounds = [
-    "asset/background/1.png",
-    "asset/background/2.png",
-    "asset/background/3.png",
-    "asset/background/4.png",
-  ];
+    const [, owner, repo] = match;
+    
+    // Remove any trailing slashes or fragments from repo name
+    const cleanRepo = repo.split(/[\/?#]/)[0];
+    
+    if (!owner || !cleanRepo) {
+      setError("Please enter a valid GitHub repository URL or owner/repo");
+      setLoading(false);
+      return;
+    }
+
+    router.push(`/${owner}/${cleanRepo}`);
+  };
 
   return (
-    <div className="flex flex-col justify-between pb-20 h-dvh bg-white">
-      <div className="flex flex-col justify-between overflow-y-scroll">
-        <div
-          ref={messagesContainerRef}
-          className="py-20"
-        >
-          <div className="w-lg flex flex-col items-start gap-3 mx-auto">
-            {messages.length === 0 && (
-              <motion.div className="px-4 w-full md:px-0">
-                <div className="rounded-xs p-6 flex flex-col gap-6">
-                  <h1 className="font-display text-pretty text-4xl font-medium tracking-tight">
-                    Expert-Level Knowledge on any open-source library
-                  </h1>
-                  <div className="flex flex-col gap-2">
-                    <p>
-                      LLMs have knowledge cutoffs based on their training data.
-                    </p>
-                    <p>
-                      Chroma indexed 18,000+ codebases to create an MCP that provides your code agent
-                      up-to-date knowledge on any open-source library or SDK.
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-            <div className="grid gap-2 w-full px-4 md:px-0 mx-auto mb-4">
-              {messages.length === 0 &&
-                suggestedActions.map((action, index) => (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.01 * index }}
-                    key={index}
-                    className={index > 1 ? "hidden sm:block" : "block"}
-                  >
-                    <button
-                      onClick={() => onSubmit(action.action)}
-                      className="w-full text-left border border-neutral-400 text-zinc-800 rounded-lg p-2 text-sm relative overflow-hidden transition-colors flex flex-col group hover:bg-neutral-100"
-                    >
-                      <div className={`absolute inset-0 opacity-0 transition-opacity duration-400 group-hover:bg-gray-100`} />
-                      <span className="font-medium relative z-10">{action.title}</span>
-                      <span className="text-zinc-500 dark:text-zinc-400 relative z-10">
-                        {action.label}
-                      </span>
-                    </button>
-                  </motion.div>
-                ))}
-            </div>
-            {messages.map((message) => (
-              <Message key={message.id} message={message} />
-            ))}
-            {status === "submitted" && (
-              <div className="text-gray-500 font-serif px-3 text-lg">
-                Thinking<AnimatedEllipsis />
-              </div>
-            )}
-            {status === "error" && (
-              <div className="text-red-500">
-                Error: {error?.message}
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-white px-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1}}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-2xl"
+      >
+        <div className="text-center mb-8">
+          <h1 className="font-display text-4xl md:text-5xl font-medium tracking-tight mb-4">
+            Chat with any GitHub Repository
+          </h1>
         </div>
-      </div>
 
-      <div className="mt-[-10px] w-lg mx-auto">
-        <ChatInput
-          input={input}
-          setInput={setInput}
-          onSubmit={onSubmit}
-        />
-      </div>
+        <form onSubmit={handleSubmit} className="w-full">
+          <div className="flex flex-col gap-3">
+            <input
+              type="text"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/chroma-core/chroma"
+              className="w-full px-4 py-3 text-lg border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:border-transparent"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={loading || !repoUrl.trim()}
+              className="w-full px-6 py-3 text-lg font-medium text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? "Loading..." : "Start Chatting"}
+            </button>
+          </div>
+          {error && (
+            <p className="mt-3 text-red-600 text-sm">{error}</p>
+          )}
+        </form>
+      </motion.div>
     </div>
   );
 }

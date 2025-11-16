@@ -1,5 +1,6 @@
 import styles from './misc.module.css';
+import { cn } from '@/lib/utils';
 
-export function AnimatedEllipsis() {
-    return <span className={styles['animated-ellipsis']}></span>
+export function AnimatedEllipsis({ className }: { className?: string }) {
+    return <span className={cn(styles['animated-ellipsis'], className)}></span>
 }

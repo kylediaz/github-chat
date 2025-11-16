@@ -6,12 +6,13 @@ interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
   onSubmit: (input: string) => Promise<void>;
+  disabled?: boolean;
 }
 
-export function ChatInput({ input, setInput, onSubmit }: ChatInputProps) {
+export function ChatInput({ input, setInput, onSubmit, disabled = false }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isDisabled = input.trim() === "";
+  const isDisabled = disabled || input.trim() === "";
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -34,15 +35,16 @@ export function ChatInput({ input, setInput, onSubmit }: ChatInputProps) {
       className="px-4 pb-4 mx-auto w-full max-w-xl bg-white sm:px-0"
       onSubmit={handleSubmit}
     >
-      <div className="relative w-full pt-4">
+      <div className="relative w-full">
         <textarea
           ref={textareaRef}
           className="border-input placeholder:text-muted-foreground focus-visible:border-ring aria-invalid:ring-destructive/20 aria-invalid:border-destructive flex field-sizing-content min-h-16 border px-3 py-2 text-base outline-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm resize-none bg-secondary w-full rounded-lg pr-12 pt-4 pb-16"
           autoFocus
-          placeholder="Ask anything..."
+          placeholder={disabled ? "Waiting for sync to complete..." : "Ask anything..."}
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={handleKeyDown}
+          disabled={disabled}
         />
         
         <button
