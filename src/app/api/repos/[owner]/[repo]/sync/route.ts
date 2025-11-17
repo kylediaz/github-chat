@@ -5,6 +5,7 @@ import { trace } from '@opentelemetry/api';
 import { validateEnv } from '@/lib/env';
 import { getRepository, getBranchCommit, getRepositoryTree } from '@/lib/github';
 import { createSource, createInvocation } from '@/lib/chroma';
+import { computeSyncStatus } from '@/lib/sync-status';
 import { randomUUID } from 'crypto';
 import type { SyncResponse, ErrorResponse } from '@/lib/api-models';
 
@@ -255,38 +256,52 @@ export async function POST(
         return NextResponse.json(errorResponse, { status: 500 });
       }
 
-      // Step 3: Check resync eligibility
+      // Step 3: Compute current status and check if sync is needed
+      const currentStatus = await computeSyncStatus(owner, repo);
+
+      // If already up to date, return early (idempotent)
+      if (currentStatus === 'up_to_date') {
+        span.addEvent('sync_up_to_date');
+        const response: SyncResponse = { status: 'up_to_date' };
+        return NextResponse.json(response);
+      }
+
+      // If processing with recent invocation, don't create duplicate
+      if (currentStatus === 'processing') {
+        const source = await db.query.githubSyncSources.findFirst({
+          where: and(
+            eq(githubSyncSources.owner, owner),
+            eq(githubSyncSources.repo, repo)
+          ),
+        });
+
+        if (source) {
+          const latestInvocation = await db.query.githubSyncInvocations.findFirst({
+            where: eq(githubSyncInvocations.sourceUuid, source.uuid),
+            orderBy: [desc(githubSyncInvocations.createdAt)],
+          });
+
+          if (latestInvocation) {
+            const invocationAge = Date.now() - latestInvocation.createdAt.getTime();
+            const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+            
+            // If there's a recent invocation (<1 day old), don't create duplicate
+            if (invocationAge < 24 * 60 * 60 * 1000) {
+              span.addEvent('sync_already_processing');
+              const response: SyncResponse = { status: 'processing' };
+              return NextResponse.json(response);
+            }
+          }
+        }
+      }
+
+      // Proceed with sync creation for: 'processing' (no source), 'out_of_date', or 'failed'
       let source = await db.query.githubSyncSources.findFirst({
         where: and(
           eq(githubSyncSources.owner, owner),
           eq(githubSyncSources.repo, repo)
         ),
       });
-
-      if (source) {
-        const latestInvocation = await db.query.githubSyncInvocations.findFirst({
-          where: eq(githubSyncInvocations.sourceUuid, source.uuid),
-          orderBy: [desc(githubSyncInvocations.createdAt)],
-        });
-
-        if (latestInvocation) {
-          const canResync =
-            latestInvocation.status === 'failed' ||
-            (commitData.fetchedAt > oneDayAgo && latestInvocation.createdAt < oneDayAgo);
-
-          if (!canResync && latestInvocation.status === 'completed') {
-            span.addEvent('sync_up_to_date');
-            const response: SyncResponse = { status: 'up_to_date' };
-            return NextResponse.json(response);
-          }
-
-          if (!canResync) {
-            span.addEvent('sync_rate_limited');
-            const response: SyncResponse = { status: latestInvocation.status };
-            return NextResponse.json(response);
-          }
-        }
-      }
 
       // Step 4: Create or get Chroma source
       if (!source) {
@@ -370,7 +385,9 @@ export async function POST(
         return NextResponse.json(errorResponse, { status: 500 });
       }
 
-      const response: SyncResponse = { status: 'pending' };
+      // Return computed status after creating invocation
+      const newStatus = await computeSyncStatus(owner, repo);
+      const response: SyncResponse = { status: newStatus || 'processing' };
       return NextResponse.json(response);
     } catch (error) {
       console.error('Error syncing repo:', error);

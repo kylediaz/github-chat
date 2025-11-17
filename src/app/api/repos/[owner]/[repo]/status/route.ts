@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, githubRepo, githubRepoCommit, githubRepoTrees, githubSyncSources, githubSyncInvocations } from '@/db';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import { trace } from '@opentelemetry/api';
 import { validateEnv } from '@/lib/env';
-import { getInvocationStatus } from '@/lib/chroma';
 import { transformTreeToHierarchy } from '@/lib/github';
+import { computeSyncStatus } from '@/lib/sync-status';
 import type { StatusResponse, ErrorResponse } from '@/lib/api-models';
 
 const tracer = trace.getTracer('api');
@@ -34,7 +34,6 @@ export async function GET(
       span.setAttribute('repo.exists', false);
       const response: StatusResponse = {
         exists: false,
-        synced: false,
         sync_status: null,
         is_private: false,
         repo_info: null,
@@ -44,6 +43,12 @@ export async function GET(
       return NextResponse.json(response);
     }
 
+    // Compute sync status using shared utility
+    const computedStatus = await computeSyncStatus(owner, repo);
+
+    // Fetch all related data efficiently using joins
+    // Query 1: Get source with latest invocation and latest commit in one query
+    // Use a simpler approach - get source first, then join related data
     const source = await db.query.githubSyncSources.findFirst({
       where: and(
         eq(githubSyncSources.owner, owner),
@@ -51,94 +56,91 @@ export async function GET(
       ),
     });
 
-    let syncStatus: string | null = null;
-    let synced = false;
-    let commitSha: string | null = null;
-    let treeSha: string | null = null;
+    // Query 2: Get latest invocation and latest commit in parallel if source exists
+    const [latestInvocation, latestCommit] = await Promise.all([
+      source
+        ? db.query.githubSyncInvocations.findFirst({
+            where: eq(githubSyncInvocations.sourceUuid, source.uuid),
+            orderBy: [desc(githubSyncInvocations.createdAt)],
+          })
+        : Promise.resolve(null),
+      db.query.githubRepoCommit.findFirst({
+        where: and(
+          eq(githubRepoCommit.owner, owner),
+          eq(githubRepoCommit.repo, repo)
+        ),
+        orderBy: [desc(githubRepoCommit.fetchedAt)],
+      }),
+    ]);
 
-    if (source) {
-      const latestInvocation = await db.query.githubSyncInvocations.findFirst({
-        where: eq(githubSyncInvocations.sourceUuid, source.uuid),
-        orderBy: [desc(githubSyncInvocations.createdAt)],
-      });
-
-      if (latestInvocation) {
-        syncStatus = latestInvocation.status;
-        synced = latestInvocation.status === 'completed';
-        commitSha = latestInvocation.commitSha;
-
-        const commitData = await db.query.githubRepoCommit.findFirst({
+    // Query 3: Get completed invocation if source exists
+    const completedInvocation = source
+      ? await db.query.githubSyncInvocations.findFirst({
           where: and(
-            eq(githubRepoCommit.owner, owner),
-            eq(githubRepoCommit.repo, repo),
-            eq(githubRepoCommit.sha, latestInvocation.commitSha)
+            eq(githubSyncInvocations.sourceUuid, source.uuid),
+            eq(githubSyncInvocations.status, 'completed')
           ),
-        });
+          orderBy: [desc(githubSyncInvocations.createdAt)],
+        })
+      : null;
 
-        if (commitData) {
-          treeSha = commitData.treeSha;
-        }
-
-        const isTerminalState = latestInvocation.status === 'completed' || latestInvocation.status === 'failed' || latestInvocation.status === 'cancelled';
-        
-        if (!isTerminalState) {
-          span.setAttribute('invocation.id', latestInvocation.invocationId);
-          
-          try {
-            const statusData = await getInvocationStatus(latestInvocation.invocationId);
-            const currentStatus = statusData.status;
-
-            if (currentStatus !== latestInvocation.status) {
-              await db.update(githubSyncInvocations)
-                .set({ status: currentStatus })
-                .where(eq(githubSyncInvocations.uuid, latestInvocation.uuid));
-
-              span.addEvent('status_updated', {
-                oldStatus: latestInvocation.status,
-                newStatus: currentStatus,
-              });
-
-              syncStatus = currentStatus;
-              synced = currentStatus === 'completed';
-            }
-
-            span.setAttribute('invocation.status', currentStatus);
-          } catch (error) {
-            console.error('Failed to fetch invocation status:', error);
-            span.recordException(error as Error);
-          }
-        }
-      }
+    // Determine commit SHA
+    let commitSha: string | null = null;
+    if (completedInvocation) {
+      commitSha = completedInvocation.commitSha;
+    } else if (latestInvocation) {
+      commitSha = latestInvocation.commitSha;
+    } else if (latestCommit) {
+      commitSha = latestCommit.sha;
     }
 
+    // Query 4: Get commit data and tree in one query if we have a commit SHA
+    let treeSha: string | null = null;
     let tree = null;
-    if (treeSha) {
-      const treeData = await db.query.githubRepoTrees.findFirst({
-        where: and(
-          eq(githubRepoTrees.owner, owner),
-          eq(githubRepoTrees.repo, repo),
-          eq(githubRepoTrees.treeSha, treeSha)
-        ),
-      });
 
-      if (treeData && treeData.tree) {
-        const treeArray = treeData.tree as any;
-        if (Array.isArray(treeArray)) {
-          tree = transformTreeToHierarchy(treeArray, repoData.fullName);
+    if (commitSha) {
+      const commitWithTree = await db
+        .select({
+          commit: githubRepoCommit,
+          tree: githubRepoTrees,
+        })
+        .from(githubRepoCommit)
+        .leftJoin(
+          githubRepoTrees,
+          and(
+            eq(githubRepoTrees.owner, owner),
+            eq(githubRepoTrees.repo, repo),
+            eq(githubRepoTrees.treeSha, githubRepoCommit.treeSha)
+          )
+        )
+        .where(
+          and(
+            eq(githubRepoCommit.owner, owner),
+            eq(githubRepoCommit.repo, repo),
+            eq(githubRepoCommit.sha, commitSha)
+          )
+        )
+        .limit(1);
+
+      if (commitWithTree.length > 0) {
+        treeSha = commitWithTree[0].commit.treeSha;
+        if (commitWithTree[0].tree && commitWithTree[0].tree.tree) {
+          const treeArray = commitWithTree[0].tree.tree as any;
+          if (Array.isArray(treeArray)) {
+            tree = transformTreeToHierarchy(treeArray, repoData.fullName);
+          }
         }
       }
     }
 
     span.setAttributes({
       'repo.exists': true,
-      'repo.synced': synced,
-      'repo.sync_status': syncStatus || '',
+      'repo.sync_status': computedStatus || '',
     });
 
     const response: StatusResponse = {
       exists: true,
-      synced,
-      sync_status: syncStatus,
+      sync_status: computedStatus,
       is_private: repoData.private,
       repo_info: {
         fullName: repoData.fullName,

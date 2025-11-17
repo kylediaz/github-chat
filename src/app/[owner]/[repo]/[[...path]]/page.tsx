@@ -10,7 +10,7 @@ import { motion } from "framer-motion";
 import { DefaultChatTransport } from "ai";
 import { AnimatedEllipsis, Spinner } from "@/components/misc";
 import { RepoTree } from "@/components/repo-tree";
-import type { StatusResponse, ErrorResponse } from "@/lib/api-models";
+import type { StatusResponse, ErrorResponse, RepoSyncStatus } from "@/lib/api-models";
 
 export default function ChatPage() {
   const params = useParams();
@@ -19,7 +19,7 @@ export default function ChatPage() {
   const repo = params.repo as string;
 
   const [repoInfo, setRepoInfo] = useState<StatusResponse | null>(null);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<RepoSyncStatus | null>(null);
   const [commitSha, setCommitSha] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [isPolling, setIsPolling] = useState<boolean>(false);
@@ -66,11 +66,12 @@ export default function ChatPage() {
           }
         }
 
-        if (statusData.synced && statusData.sync_status === 'completed') {
+        if (statusData.sync_status === 'up_to_date') {
           setChatEnabled(true);
-          setSyncStatus('completed');
+          setSyncStatus('up_to_date');
         } else {
-          if (!statusData.synced || statusData.sync_status === 'pending' || statusData.sync_status === 'processing') {
+          // Trigger sync for 'processing' or 'out_of_date' states (sync endpoint is idempotent)
+          if (statusData.sync_status === 'processing' || statusData.sync_status === 'out_of_date') {
             const syncResponse = await fetch(`/api/repos/${owner}/${repo}/sync`, {
               method: 'POST',
             });
@@ -80,6 +81,11 @@ export default function ChatPage() {
               setError(errorData.error || 'Failed to start sync');
               return;
             }
+          }
+
+          if (statusData.sync_status === 'failed') {
+            setError('Sync failed. Please try again.');
+            return;
           }
 
           setIsPolling(true);
@@ -105,7 +111,7 @@ export default function ChatPage() {
         setSyncStatus(statusData.sync_status);
         setCommitSha(statusData.commit_sha);
 
-        if (statusData.sync_status === 'completed') {
+        if (statusData.sync_status === 'up_to_date') {
           setChatEnabled(true);
           setIsPolling(false);
         } else if (statusData.sync_status === 'failed') {

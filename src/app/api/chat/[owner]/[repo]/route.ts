@@ -6,6 +6,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { validateEnv } from '@/lib/env';
 import { queryCollection } from '@/lib/chroma';
+import { computeSyncStatus } from '@/lib/sync-status';
 import type { ErrorResponse } from '@/lib/api-models';
 
 validateEnv();
@@ -28,21 +29,47 @@ export async function POST(
         ),
       });
 
+      // Check if repository is up to date
+      const syncStatus = await computeSyncStatus(owner, repo);
+      
+      if (syncStatus !== 'up_to_date') {
+        const errorResponse: ErrorResponse = { 
+          error: syncStatus === 'failed' 
+            ? 'Repository sync failed' 
+            : 'Repository not synced yet' 
+        };
+        return new Response(
+          JSON.stringify(errorResponse),
+          { status: 400 }
+        );
+      }
+
+      const source = await db.query.githubSyncSources.findFirst({
+        where: and(
+          eq(githubSyncSources.owner, owner),
+          eq(githubSyncSources.repo, repo)
+        ),
+      });
+
       if (!source) {
-        const errorResponse: ErrorResponse = { error: 'Repository not synced' };
+        const errorResponse: ErrorResponse = { error: 'Repository source not found' };
         return new Response(
           JSON.stringify(errorResponse),
           { status: 404 }
         );
       }
 
+      // Get the latest completed invocation
       const latestInvocation = await db.query.githubSyncInvocations.findFirst({
-        where: eq(githubSyncInvocations.sourceUuid, source.uuid),
+        where: and(
+          eq(githubSyncInvocations.sourceUuid, source.uuid),
+          eq(githubSyncInvocations.status, 'completed')
+        ),
         orderBy: [desc(githubSyncInvocations.createdAt)],
       });
 
-      if (!latestInvocation || latestInvocation.status !== 'completed') {
-        const errorResponse: ErrorResponse = { error: 'Repository sync not completed' };
+      if (!latestInvocation) {
+        const errorResponse: ErrorResponse = { error: 'No completed sync found' };
         return new Response(
           JSON.stringify(errorResponse),
           { status: 400 }

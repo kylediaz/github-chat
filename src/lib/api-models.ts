@@ -11,24 +11,16 @@ export interface RepoInfo {
   openIssuesCount: number;
 }
 
-export interface RepoCheckResponse {
-  exists: boolean;
-  synced: boolean;
-  sync_status: string | null;
-  is_private: boolean;
-  repo_info: RepoInfo | null;
-}
+
+export type RepoSyncStatus = 'processing' | 'out_of_date' | 'up_to_date' | 'failed';
 
 export interface SyncResponse {
-  status: 'pending' | 'up_to_date' | string;
+  status: RepoSyncStatus;
 }
-
-type SyncStatus = 'pending' | 'up_to_date' | 'processing' | 'completed' | 'failed';
 
 export interface StatusResponse {
   exists: boolean;
-  synced: boolean;
-  sync_status: string | null;
+  sync_status: RepoSyncStatus | null;
   is_private: boolean;
   repo_info: RepoInfo | null;
   commit_sha: string | null;
