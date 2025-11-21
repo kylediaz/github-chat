@@ -29,22 +29,22 @@ function formatParameterValue(value: any): string {
   if (Array.isArray(value)) {
     return `"${JSON.stringify(value)}"`;
   }
-  
+
   return `"${String(value)}"`;
 }
 
 // Components
 export function Message({ message }: MessageProps): ReactNode {
   const { role } = message;
-  
+
   if (role === "user") {
     return <UserMessage message={message} />;
   }
-  
+
   if (role === "assistant") {
     return <AssistantMessage message={message} />;
   }
-  
+
   return null;
 }
 
@@ -52,13 +52,13 @@ function UserMessage({ message }: { message: UIMessage }) {
   return (
     <div className="min-w-[4ch] py-2 px-3 rounded-md bg-secondary border-[.1px] border-border mt-8">
       {message.parts.map((part, index) =>
-        part.type === 'text' ? (
-          <MemoizedMarkdown 
+        part.type === "text" ? (
+          <MemoizedMarkdown
             key={`${message.id}-${index}`}
             id={`${message.id}-${index}`}
             content={part.text}
           />
-        ) : null
+        ) : null,
       )}
     </div>
   );
@@ -72,40 +72,47 @@ function AssistantMessage({ message }: { message: UIMessage }) {
   );
 }
 
-function MessageContent({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[] }) {
+function MessageContent({
+  parts,
+}: {
+  parts: UIMessagePart<UIDataTypes, UITools>[];
+}) {
   return (
     <>
       {parts.map((part, index) => {
         // Handle step-start (ignore it)
-        if (part.type === 'step-start') {
+        if (part.type === "step-start") {
           return null;
         }
 
         // Handle tool-* types (e.g., tool-searchFiles, tool-searchCode)
-        if (typeof part.type === 'string' && part.type.startsWith('tool-')) {
+        if (typeof part.type === "string" && part.type.startsWith("tool-")) {
           return <ToolInvocation key={index} part={part} />;
         }
 
         switch (part.type) {
-          case 'text':
+          case "text":
             return (
-              <MemoizedMarkdown 
+              <MemoizedMarkdown
                 key={index}
                 id={`content-${index}`}
                 content={part.text}
               />
             );
-          case 'reasoning':
+          case "reasoning":
             return (
               <Reasoning key={index}>
                 <ReasoningTrigger />
                 <ReasoningContent>{part.text}</ReasoningContent>
               </Reasoning>
             );
-          case 'dynamic-tool':
+          case "dynamic-tool":
             return <ToolInvocation key={index} part={part} />;
-          case 'tool-formatCode':
-            const { language, code } = "input" in part ? part.input as { language: string, code: string } : { language: "", code: "" };
+          case "tool-formatCode":
+            const { language, code } =
+              "input" in part
+                ? (part.input as { language: string; code: string })
+                : { language: "", code: "" };
             return <CodeBlock key={index} code={code} language={language} />;
           default:
             return null;
@@ -115,26 +122,33 @@ function MessageContent({ parts }: { parts: UIMessagePart<UIDataTypes, UITools>[
   );
 }
 
-function ToolInvocation({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
+function ToolInvocation({
+  part,
+}: {
+  part: UIMessagePart<UIDataTypes, UITools>;
+}) {
   const partAny = part as any;
   // Extract tool name from type if it's tool-{name} format, otherwise use toolName property
-  const toolName = typeof part.type === 'string' && part.type.startsWith('tool-')
-    ? part.type.replace('tool-', '')
-    : partAny.toolName || 'unknown';
+  const toolName =
+    typeof part.type === "string" && part.type.startsWith("tool-")
+      ? part.type.replace("tool-", "")
+      : partAny.toolName || "unknown";
   const input = partAny.input;
   const output = partAny.output;
   const toolCallId = partAny.toolCallId;
   const state = partAny.state;
-  
+
   const { openWindow } = useWindows();
-  
+
   const { searchResults } = parseToolOutput(output);
-  const isLoading = !output || state !== 'output-available' || !searchResults;
+  const isLoading = !output || state !== "output-available" || !searchResults;
 
   const handleToolCallClick = () => {
     openWindow({
       title: `${toolName} - Tool Call Details`,
-      content: <ToolCallWindow toolName={toolName} input={input} output={output} />,
+      content: (
+        <ToolCallWindow toolName={toolName} input={input} output={output} />
+      ),
       x: 650,
       y: 100,
       width: 400,
@@ -147,7 +161,7 @@ function ToolInvocation({ part }: { part: UIMessagePart<UIDataTypes, UITools> })
   return (
     <div key={toolCallId} className="mb-2">
       {input && (
-        <div 
+        <div
           className="font-mono text-sm flex flex-row cursor-pointer hover:underline"
           onClick={handleToolCallClick}
         >
@@ -157,7 +171,7 @@ function ToolInvocation({ part }: { part: UIMessagePart<UIDataTypes, UITools> })
           {")"}
         </div>
       )}
-      
+
       {isLoading ? (
         <div className="flex flex-row gap-[1ch] font-mono text-sm">
           <span>⎿</span>
@@ -171,12 +185,12 @@ function ToolInvocation({ part }: { part: UIMessagePart<UIDataTypes, UITools> })
 }
 
 function ToolCallParameters({ input }: { input: Record<string, any> }) {
-  if (!input || typeof input !== 'object') {
+  if (!input || typeof input !== "object") {
     return null;
   }
 
   const params = Object.entries(input);
-  
+
   if (params.length === 0) {
     return null;
   }
@@ -196,18 +210,21 @@ function ToolCallParameters({ input }: { input: Record<string, any> }) {
 function SearchResults({ results }: { results: any }) {
   const { openWindow } = useWindows();
   const [showAll, setShowAll] = useState(false);
-  
+
   if (!results?.results?.length) {
     return <div>No search results found</div>;
   }
 
   const resultsArray = results.results;
-  const visibleResults = showAll ? resultsArray : resultsArray.slice(0, MAX_VISIBLE_RESULTS);
+  const visibleResults = showAll
+    ? resultsArray
+    : resultsArray.slice(0, MAX_VISIBLE_RESULTS);
   const hiddenCount = resultsArray.length - MAX_VISIBLE_RESULTS;
 
   const handleResultClick = (result: any, index: number) => {
-    const fileName = (result.path || 'unknown').split('/').pop() || 'Unknown File';
-    
+    const fileName =
+      (result.path || "unknown").split("/").pop() || "Unknown File";
+
     openWindow({
       title: fileName,
       content: (
@@ -215,18 +232,20 @@ function SearchResults({ results }: { results: any }) {
           <div className="flex-1 overflow-auto p-4 bg-white">
             <div className="font-mono text-sm space-y-2">
               <div className="text-gray-600 mb-4">
-                <div>{result.path || 'unknown'}</div>
+                <div>{result.path || "unknown"}</div>
                 {result.relevanceScore !== undefined && (
-                  <div className="text-xs">Relevance: {result.relevanceScore.toFixed(4)}</div>
+                  <div className="text-xs">
+                    Relevance: {result.relevanceScore.toFixed(4)}
+                  </div>
                 )}
               </div>
-              <CodeBlock code={result.content || ''} language="text" />
+              <CodeBlock code={result.content || ""} language="text" />
             </div>
           </div>
         </div>
       ),
-      x: 550 + (index * 30),
-      y: 50 + (index * 30),
+      x: 550 + index * 30,
+      y: 50 + index * 30,
       width: 350,
       height: 600,
       isMinimized: false,
@@ -240,13 +259,15 @@ function SearchResults({ results }: { results: any }) {
       <div>
         {visibleResults.map((result: any, index: number) => {
           const shouldAnimate = !showAll || index < MAX_VISIBLE_RESULTS;
-          const ResultComponent = shouldAnimate ? motion.div : 'div';
-          const animationProps = shouldAnimate ? {
-            initial: { opacity: 0 },
-            animate: { opacity: 1 },
-            transition: { delay: index * 0.05, duration: 0.01 }
-          } : {};
-          
+          const ResultComponent = shouldAnimate ? motion.div : "div";
+          const animationProps = shouldAnimate
+            ? {
+                initial: { opacity: 0 },
+                animate: { opacity: 1 },
+                transition: { delay: index * 0.05, duration: 0.01 },
+              }
+            : {};
+
           return (
             <ResultComponent
               key={index}
@@ -254,11 +275,11 @@ function SearchResults({ results }: { results: any }) {
               onClick={() => handleResultClick(result, index)}
               {...animationProps}
             >
-              {result.path || 'unknown'}
+              {result.path || "unknown"}
             </ResultComponent>
           );
         })}
-        
+
         {!showAll && hiddenCount > 0 && (
           <motion.div
             className="cursor-pointer hover:underline text-gray-500"

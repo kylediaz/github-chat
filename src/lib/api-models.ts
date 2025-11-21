@@ -1,4 +1,4 @@
-import type { TreeNode } from './github';
+import type { TreeNode } from "./github";
 
 export interface RepoInfo {
   fullName: string;
@@ -11,8 +11,11 @@ export interface RepoInfo {
   openIssuesCount: number;
 }
 
-
-export type RepoSyncStatus = 'processing' | 'out_of_date' | 'up_to_date' | 'failed';
+export type RepoSyncStatus =
+  | "processing"
+  | "out_of_date"
+  | "up_to_date"
+  | "failed";
 
 export interface SyncResponse {
   status: RepoSyncStatus;
@@ -30,4 +33,3 @@ export interface StatusResponse {
 export interface ErrorResponse {
   error: string;
 }
-

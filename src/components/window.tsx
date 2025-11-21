@@ -1,52 +1,82 @@
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { WindowState, useWindows } from '@/contexts/window-context';
-import { Button } from '@/components/ui/button';
-import { X, Minus, Square, RotateCcw } from 'lucide-react';
+import React, { useRef, useEffect, useState, useCallback } from "react";
+import { WindowState, useWindows } from "@/contexts/window-context";
+import { Button } from "@/components/ui/button";
+import { X, Minus, Square, RotateCcw } from "lucide-react";
 
 interface WindowProps {
   window: WindowState;
 }
 
 export function Window({ window }: WindowProps) {
-  const { closeWindow, minimizeWindow, maximizeWindow, updateWindow, bringToFront } = useWindows();
+  const {
+    closeWindow,
+    minimizeWindow,
+    maximizeWindow,
+    updateWindow,
+    bringToFront,
+  } = useWindows();
   const windowRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [resizeDirection, setResizeDirection] = useState<string>('');
+  const [resizeDirection, setResizeDirection] = useState<string>("");
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [windowStart, setWindowStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [windowStart, setWindowStart] = useState({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+  });
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.target !== headerRef.current && !headerRef.current?.contains(e.target as Node)) {
-      return;
-    }
-    
-    bringToFront(window.id);
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setWindowStart({ x: window.x, y: window.y, width: window.width, height: window.height });
-    e.preventDefault();
-  }, [window.id, window.x, window.y, window.width, window.height, bringToFront]);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (
+        e.target !== headerRef.current &&
+        !headerRef.current?.contains(e.target as Node)
+      ) {
+        return;
+      }
 
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent, direction: string) => {
-    bringToFront(window.id);
-    setIsResizing(true);
-    setResizeDirection(direction);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setWindowStart({ x: window.x, y: window.y, width: window.width, height: window.height });
-    e.preventDefault();
-    e.stopPropagation();
-  }, [window.id, window.x, window.y, window.width, window.height, bringToFront]);
+      bringToFront(window.id);
+      setIsDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      setWindowStart({
+        x: window.x,
+        y: window.y,
+        width: window.width,
+        height: window.height,
+      });
+      e.preventDefault();
+    },
+    [window.id, window.x, window.y, window.width, window.height, bringToFront],
+  );
+
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent, direction: string) => {
+      bringToFront(window.id);
+      setIsResizing(true);
+      setResizeDirection(direction);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      setWindowStart({
+        x: window.x,
+        y: window.y,
+        width: window.width,
+        height: window.height,
+      });
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    [window.id, window.x, window.y, window.width, window.height, bringToFront],
+  );
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) {
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
-        
+
         updateWindow(window.id, {
           x: Math.max(0, windowStart.x + deltaX),
           y: Math.max(0, windowStart.y + deltaY),
@@ -54,36 +84,36 @@ export function Window({ window }: WindowProps) {
       } else if (isResizing) {
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
-        
+
         let newX = windowStart.x;
         let newY = windowStart.y;
         let newWidth = windowStart.width;
         let newHeight = windowStart.height;
 
-        if (resizeDirection.includes('n')) {
+        if (resizeDirection.includes("n")) {
           newY = windowStart.y + deltaY;
           newHeight = windowStart.height - deltaY;
         }
-        if (resizeDirection.includes('s')) {
+        if (resizeDirection.includes("s")) {
           newHeight = windowStart.height + deltaY;
         }
-        if (resizeDirection.includes('w')) {
+        if (resizeDirection.includes("w")) {
           newX = windowStart.x + deltaX;
           newWidth = windowStart.width - deltaX;
         }
-        if (resizeDirection.includes('e')) {
+        if (resizeDirection.includes("e")) {
           newWidth = windowStart.width + deltaX;
         }
 
         // Minimum size constraints
         newWidth = Math.max(200, newWidth);
         newHeight = Math.max(150, newHeight);
-        
+
         // Adjust position if we hit minimum width/height
-        if (newWidth === 200 && resizeDirection.includes('w')) {
+        if (newWidth === 200 && resizeDirection.includes("w")) {
           newX = windowStart.x + windowStart.width - 200;
         }
-        if (newHeight === 150 && resizeDirection.includes('n')) {
+        if (newHeight === 150 && resizeDirection.includes("n")) {
           newY = windowStart.y + windowStart.height - 150;
         }
 
@@ -99,18 +129,26 @@ export function Window({ window }: WindowProps) {
     const handleMouseUp = () => {
       setIsDragging(false);
       setIsResizing(false);
-      setResizeDirection('');
+      setResizeDirection("");
     };
 
     if (isDragging || isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
       };
     }
-  }, [isDragging, isResizing, dragStart, windowStart, resizeDirection, window.id, updateWindow]);
+  }, [
+    isDragging,
+    isResizing,
+    dragStart,
+    windowStart,
+    resizeDirection,
+    window.id,
+    updateWindow,
+  ]);
 
   const handleWindowClick = useCallback(() => {
     bringToFront(window.id);
@@ -121,10 +159,10 @@ export function Window({ window }: WindowProps) {
   }
 
   const commonStyles = {
-    position: 'fixed' as const,
+    position: "fixed" as const,
     zIndex: window.zIndex,
-    animation: 'slideAndShadow 0.05s ease-out forwards',
-    transform: 'translate(6px, 6px)',
+    animation: "slideAndShadow 0.05s ease-out forwards",
+    transform: "translate(6px, 6px)",
     boxShadow: "rgba(0, 0, 0, 0.1) 0px 0px 0px",
   };
 
@@ -133,8 +171,8 @@ export function Window({ window }: WindowProps) {
         ...commonStyles,
         top: 0,
         left: 0,
-        width: '100vw',
-        height: '100vh',
+        width: "100vw",
+        height: "100vh",
       }
     : {
         ...commonStyles,
@@ -192,13 +230,14 @@ export function Window({ window }: WindowProps) {
               maximizeWindow(window.id);
             }}
           >
-            {window.isMaximized ? 
-              <RotateCcw className="h-2 w-2 text-green-800 opacity-0 group-hover:opacity-100 transition-opacity" /> : 
+            {window.isMaximized ? (
+              <RotateCcw className="h-2 w-2 text-green-800 opacity-0 group-hover:opacity-100 transition-opacity" />
+            ) : (
               <Square className="h-2 w-2 text-green-800 opacity-0 group-hover:opacity-100 transition-opacity" />
-            }
+            )}
           </button>
         </div>
-        
+
         {/* Centered title */}
         <div className="flex-1 text-center">
           <div className="text-xs font-medium text-gray-700 opacity-0 truncate mx-16">
@@ -208,7 +247,10 @@ export function Window({ window }: WindowProps) {
       </div>
 
       {/* Window Content */}
-      <div className="flex-1 overflow-auto" style={{ height: 'calc(100% - 40px)' }}>
+      <div
+        className="flex-1 overflow-auto"
+        style={{ height: "calc(100% - 40px)" }}
+      >
         {window.content}
       </div>
 
@@ -218,37 +260,37 @@ export function Window({ window }: WindowProps) {
           {/* Corner handles */}
           <div
             className="absolute top-0 left-0 w-2 h-2 cursor-nw-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "nw")}
           />
           <div
             className="absolute top-0 right-0 w-2 h-2 cursor-ne-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "ne")}
           />
           <div
             className="absolute bottom-0 left-0 w-2 h-2 cursor-sw-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "sw")}
           />
           <div
             className="absolute bottom-0 right-0 w-2 h-2 cursor-se-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "se")}
           />
-          
+
           {/* Edge handles */}
           <div
             className="absolute top-0 left-2 right-2 h-1 cursor-n-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 'n')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "n")}
           />
           <div
             className="absolute bottom-0 left-2 right-2 h-1 cursor-s-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 's')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "s")}
           />
           <div
             className="absolute left-0 top-2 bottom-2 w-1 cursor-w-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 'w')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "w")}
           />
           <div
             className="absolute right-0 top-2 bottom-2 w-1 cursor-e-resize"
-            onMouseDown={(e) => handleResizeMouseDown(e, 'e')}
+            onMouseDown={(e) => handleResizeMouseDown(e, "e")}
           />
         </>
       )}

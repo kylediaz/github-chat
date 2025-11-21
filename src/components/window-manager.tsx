@@ -1,8 +1,8 @@
 "use client";
 
-import React from 'react';
-import { useWindows } from '@/contexts/window-context';
-import { Window } from './window';
+import React from "react";
+import { useWindows } from "@/contexts/window-context";
+import { Window } from "./window";
 
 export function WindowManager() {
   const { windows } = useWindows();

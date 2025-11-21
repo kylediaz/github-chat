@@ -1,8 +1,8 @@
-import { Octokit } from 'octokit';
-import { env } from './env';
-import { trace } from '@opentelemetry/api';
+import { Octokit } from "octokit";
+import { env } from "./env";
+import { trace } from "@opentelemetry/api";
 
-const tracer = trace.getTracer('github');
+const tracer = trace.getTracer("github");
 
 const octokit = new Octokit({
   auth: env.GITHUB_TOKEN,
@@ -57,26 +57,26 @@ export interface GitHubError {
 
 export async function getRepository(
   owner: string,
-  repo: string
+  repo: string,
 ): Promise<GitHubRepo | GitHubError | null> {
-  const span = tracer.startSpan('github.getRepository');
+  const span = tracer.startSpan("github.getRepository");
   span.setAttributes({
-    'github.owner': owner,
-    'github.repo': repo,
+    "github.owner": owner,
+    "github.repo": repo,
   });
-  
+
   try {
-    const response = await octokit.request('GET /repos/{owner}/{repo}', {
+    const response = await octokit.request("GET /repos/{owner}/{repo}", {
       owner,
       repo,
       headers: {
-        'X-GitHub-Api-Version': '2022-11-28',
+        "X-GitHub-Api-Version": "2022-11-28",
       },
     });
 
     const data = response.data;
-    
-    span.setAttribute('repository.stars', data.stargazers_count);
+
+    span.setAttribute("repository.stars", data.stargazers_count);
 
     return {
       owner,
@@ -97,15 +97,15 @@ export async function getRepository(
     };
   } catch (error: any) {
     if (error.status === 404) {
-      span.setAttribute('error.type', 'not_found');
+      span.setAttribute("error.type", "not_found");
       return { notFound: true };
     }
-    
+
     if (error.status === 403) {
-      span.setAttribute('error.type', 'private_inaccessible');
+      span.setAttribute("error.type", "private_inaccessible");
       return { private: true, accessible: false };
     }
-    
+
     span.recordException(error);
     throw error;
   } finally {
@@ -114,25 +114,25 @@ export async function getRepository(
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0B';
-  
+  if (bytes === 0) return "0B";
+
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)}${sizes[i]}`;
 }
 
 export interface TreeNode {
   name: string;
-  type: 'directory' | 'file';
+  type: "directory" | "file";
   size?: string;
   children?: TreeNode[];
 }
 
 export function transformTreeToHierarchy(
-  tree: GitHubTree['tree'],
-  rootName: string = 'root_directory'
+  tree: GitHubTree["tree"],
+  rootName: string = "root_directory",
 ): TreeNode | null {
   if (!tree || tree.length === 0) {
     return null;
@@ -140,16 +140,16 @@ export function transformTreeToHierarchy(
 
   const root: TreeNode = {
     name: rootName,
-    type: 'directory',
+    type: "directory",
     children: [],
   };
 
   const pathMap = new Map<string, TreeNode>();
-  pathMap.set('', root);
+  pathMap.set("", root);
 
   for (const entry of tree) {
-    const pathParts = entry.path.split('/');
-    let currentPath = '';
+    const pathParts = entry.path.split("/");
+    let currentPath = "";
 
     for (let i = 0; i < pathParts.length; i++) {
       const part = pathParts[i];
@@ -158,10 +158,10 @@ export function transformTreeToHierarchy(
       currentPath = currentPath ? `${currentPath}/${part}` : part;
 
       if (!pathMap.has(currentPath)) {
-        const isDirectory = !isLast || entry.type === 'tree';
+        const isDirectory = !isLast || entry.type === "tree";
         const node: TreeNode = {
           name: part,
-          type: isDirectory ? 'directory' : 'file',
+          type: isDirectory ? "directory" : "file",
         };
 
         if (!isDirectory && entry.size !== undefined) {
@@ -186,11 +186,11 @@ export function transformTreeToHierarchy(
     if (node.children) {
       node.children.sort((a, b) => {
         if (a.type !== b.type) {
-          return a.type === 'directory' ? -1 : 1;
+          return a.type === "directory" ? -1 : 1;
         }
         return a.name.localeCompare(b.name);
       });
-      
+
       node.children.forEach(sortChildren);
     }
   };
@@ -203,45 +203,48 @@ export function transformTreeToHierarchy(
 export async function getBranchCommit(
   owner: string,
   repo: string,
-  branch: string
+  branch: string,
 ): Promise<GitHubCommit | null> {
-  const span = tracer.startSpan('github.getBranchCommit');
+  const span = tracer.startSpan("github.getBranchCommit");
   span.setAttributes({
-    'github.owner': owner,
-    'github.repo': repo,
-    'github.branch': branch,
+    "github.owner": owner,
+    "github.repo": repo,
+    "github.branch": branch,
   });
-  
+
   try {
-    const response = await octokit.request('GET /repos/{owner}/{repo}/branches/{branch}', {
-      owner,
-      repo,
-      branch,
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28',
+    const response = await octokit.request(
+      "GET /repos/{owner}/{repo}/branches/{branch}",
+      {
+        owner,
+        repo,
+        branch,
+        headers: {
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
       },
-    });
+    );
 
     const commitData = response.data.commit;
     const treeSha = commitData.commit.tree.sha;
-    
-    span.setAttribute('commit.sha', commitData.sha.substring(0, 7));
-    span.setAttribute('tree.sha', treeSha.substring(0, 7));
+
+    span.setAttribute("commit.sha", commitData.sha.substring(0, 7));
+    span.setAttribute("tree.sha", treeSha.substring(0, 7));
 
     return {
       sha: commitData.sha,
       treeSha,
       message: commitData.commit.message,
-      authorName: commitData.commit.author?.name || 'Unknown',
+      authorName: commitData.commit.author?.name || "Unknown",
       authorDate: new Date(commitData.commit.author?.date || Date.now()),
       htmlUrl: commitData.html_url,
     };
   } catch (error: any) {
     if (error.status === 404) {
-      span.setAttribute('error.type', 'branch_not_found');
+      span.setAttribute("error.type", "branch_not_found");
       return null;
     }
-    
+
     span.recordException(error);
     throw error;
   } finally {
@@ -255,27 +258,30 @@ export async function getRepositoryTree(
   treeSha: string,
   recursive: boolean = true,
 ): Promise<GitHubTree | null> {
-  const span = tracer.startSpan('github.getRepositoryTree');
+  const span = tracer.startSpan("github.getRepositoryTree");
   span.setAttributes({
-    'github.owner': owner,
-    'github.repo': repo,
-    'tree.sha': treeSha.substring(0, 7),
+    "github.owner": owner,
+    "github.repo": repo,
+    "tree.sha": treeSha.substring(0, 7),
   });
 
   try {
-    const response = await octokit.request('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', {
-      owner,
-      repo,
-      tree_sha: treeSha,
-      recursive: recursive ? 'true' : 'false',
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28',
+    const response = await octokit.request(
+      "GET /repos/{owner}/{repo}/git/trees/{tree_sha}",
+      {
+        owner,
+        repo,
+        tree_sha: treeSha,
+        recursive: recursive ? "true" : "false",
+        headers: {
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
       },
-    });
+    );
 
     const data = response.data;
-    
-    span.setAttribute('tree.entries_count', data.tree?.length || 0);
+
+    span.setAttribute("tree.entries_count", data.tree?.length || 0);
 
     return {
       sha: data.sha,
@@ -285,12 +291,12 @@ export async function getRepositoryTree(
     };
   } catch (error: any) {
     if (error.status === 404) {
-      span.setAttribute('error.type', 'tree_not_found');
+      span.setAttribute("error.type", "tree_not_found");
       return null;
     }
 
     if (error.status === 403) {
-      span.setAttribute('error.type', 'private_inaccessible');
+      span.setAttribute("error.type", "private_inaccessible");
       return null;
     }
 
@@ -300,4 +306,3 @@ export async function getRepositoryTree(
     span.end();
   }
 }
-

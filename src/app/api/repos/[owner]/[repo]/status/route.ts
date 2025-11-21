@@ -1,37 +1,45 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db, githubRepo, githubRepoCommit, githubRepoTrees, githubSyncSources, githubSyncInvocations } from '@/db';
-import { eq, and, desc, sql } from 'drizzle-orm';
-import { trace } from '@opentelemetry/api';
-import { validateEnv } from '@/lib/env';
-import { transformTreeToHierarchy } from '@/lib/github';
-import { getInvocationStatus } from '@/lib/chroma';
-import type { StatusResponse, ErrorResponse, RepoSyncStatus } from '@/lib/api-models';
+import { NextRequest, NextResponse } from "next/server";
+import {
+  db,
+  githubRepo,
+  githubRepoCommit,
+  githubRepoTrees,
+  githubSyncSources,
+  githubSyncInvocations,
+} from "@/db";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { trace } from "@opentelemetry/api";
+import { validateEnv } from "@/lib/env";
+import { transformTreeToHierarchy } from "@/lib/github";
+import { getInvocationStatus } from "@/lib/chroma";
+import type {
+  StatusResponse,
+  ErrorResponse,
+  RepoSyncStatus,
+} from "@/lib/api-models";
 
-const tracer = trace.getTracer('api');
+const tracer = trace.getTracer("api");
 
 validateEnv();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ owner: string; repo: string }> }
+  { params }: { params: Promise<{ owner: string; repo: string }> },
 ) {
   const { owner, repo } = await params;
-  const span = tracer.startSpan('api.repos.status');
+  const span = tracer.startSpan("api.repos.status");
   span.setAttributes({
-    'github.owner': owner,
-    'github.repo': repo,
+    "github.owner": owner,
+    "github.repo": repo,
   });
 
   try {
     const repoData = await db.query.githubRepo.findFirst({
-      where: and(
-        eq(githubRepo.owner, owner),
-        eq(githubRepo.repo, repo)
-      ),
+      where: and(eq(githubRepo.owner, owner), eq(githubRepo.repo, repo)),
     });
 
     if (!repoData) {
-      span.setAttribute('repo.exists', false);
+      span.setAttribute("repo.exists", false);
       const response: StatusResponse = {
         exists: false,
         sync_status: null,
@@ -49,7 +57,7 @@ export async function GET(
     const source = await db.query.githubSyncSources.findFirst({
       where: and(
         eq(githubSyncSources.owner, owner),
-        eq(githubSyncSources.repo, repo)
+        eq(githubSyncSources.repo, repo),
       ),
     });
 
@@ -64,7 +72,7 @@ export async function GET(
       db.query.githubRepoCommit.findFirst({
         where: and(
           eq(githubRepoCommit.owner, owner),
-          eq(githubRepoCommit.repo, repo)
+          eq(githubRepoCommit.repo, repo),
         ),
         orderBy: [desc(githubRepoCommit.fetchedAt)],
       }),
@@ -75,7 +83,7 @@ export async function GET(
       ? await db.query.githubSyncInvocations.findFirst({
           where: and(
             eq(githubSyncInvocations.sourceUuid, source.uuid),
-            eq(githubSyncInvocations.status, 'completed')
+            eq(githubSyncInvocations.status, "completed"),
           ),
           orderBy: [desc(githubSyncInvocations.createdAt)],
         })
@@ -87,69 +95,84 @@ export async function GET(
 
     // If no source exists, status is 'processing'
     if (!source) {
-      computedStatus = 'processing';
+      computedStatus = "processing";
     } else if (!latestInvocation) {
       // If no invocations exist, status is 'processing'
-      computedStatus = 'processing';
+      computedStatus = "processing";
     } else if (!completedInvocation) {
       // If no completed invocations exist, check latest invocation status
       // Handle cancelled as 'failed'
-      if (latestInvocation.status === 'cancelled') {
-        computedStatus = 'failed';
-      } else if (latestInvocation.status === 'failed') {
-        computedStatus = 'failed';
+      if (latestInvocation.status === "cancelled") {
+        computedStatus = "failed";
+      } else if (latestInvocation.status === "failed") {
+        computedStatus = "failed";
       } else {
         // Update invocation status if it's not in a terminal state
         let currentInvocationStatus = latestInvocation.status;
-        const isTerminalState = 
-          latestInvocation.status === 'completed' || 
-          latestInvocation.status === 'failed' || 
-          latestInvocation.status === 'cancelled';
+        const isTerminalState =
+          latestInvocation.status === "completed" ||
+          latestInvocation.status === "failed" ||
+          latestInvocation.status === "cancelled";
 
         if (!isTerminalState) {
           try {
-            const statusData = await getInvocationStatus(latestInvocation.invocationId);
+            const statusData = await getInvocationStatus(
+              latestInvocation.invocationId,
+            );
             currentInvocationStatus = statusData.status;
 
             // Update database if status changed
             if (currentInvocationStatus !== latestInvocation.status) {
-              await db.update(githubSyncInvocations)
+              await db
+                .update(githubSyncInvocations)
                 .set({ status: currentInvocationStatus })
                 .where(eq(githubSyncInvocations.uuid, latestInvocation.uuid));
             }
 
             // Handle cancelled as 'failed'
-            if (currentInvocationStatus === 'cancelled') {
-              computedStatus = 'failed';
-            } else if (currentInvocationStatus === 'failed') {
-              computedStatus = 'failed';
-            } else if (currentInvocationStatus === 'pending' || currentInvocationStatus === 'processing') {
-              const invocationAge = Date.now() - latestInvocation.createdAt.getTime();
+            if (currentInvocationStatus === "cancelled") {
+              computedStatus = "failed";
+            } else if (currentInvocationStatus === "failed") {
+              computedStatus = "failed";
+            } else if (
+              currentInvocationStatus === "pending" ||
+              currentInvocationStatus === "processing"
+            ) {
+              const invocationAge =
+                Date.now() - latestInvocation.createdAt.getTime();
               if (invocationAge < ONE_DAY_MS) {
-                computedStatus = 'processing';
+                computedStatus = "processing";
               } else {
-                computedStatus = 'failed';
+                computedStatus = "failed";
               }
             }
           } catch (error) {
-            console.error('Failed to fetch invocation status:', error);
+            console.error("Failed to fetch invocation status:", error);
             // Continue with stored status if fetch fails
-            const invocationAge = Date.now() - latestInvocation.createdAt.getTime();
-            if (latestInvocation.status === 'pending' || latestInvocation.status === 'processing') {
+            const invocationAge =
+              Date.now() - latestInvocation.createdAt.getTime();
+            if (
+              latestInvocation.status === "pending" ||
+              latestInvocation.status === "processing"
+            ) {
               if (invocationAge < ONE_DAY_MS) {
-                computedStatus = 'processing';
+                computedStatus = "processing";
               } else {
-                computedStatus = 'failed';
+                computedStatus = "failed";
               }
             }
           }
         } else {
-          const invocationAge = Date.now() - latestInvocation.createdAt.getTime();
-          if (latestInvocation.status === 'pending' || latestInvocation.status === 'processing') {
+          const invocationAge =
+            Date.now() - latestInvocation.createdAt.getTime();
+          if (
+            latestInvocation.status === "pending" ||
+            latestInvocation.status === "processing"
+          ) {
             if (invocationAge < ONE_DAY_MS) {
-              computedStatus = 'processing';
+              computedStatus = "processing";
             } else {
-              computedStatus = 'failed';
+              computedStatus = "failed";
             }
           }
         }
@@ -162,31 +185,32 @@ export async function GET(
         where: and(
           eq(githubRepoCommit.owner, owner),
           eq(githubRepoCommit.repo, repo),
-          eq(githubRepoCommit.sha, completedInvocation.commitSha)
+          eq(githubRepoCommit.sha, completedInvocation.commitSha),
         ),
       });
 
       if (!invocationCommit) {
-        computedStatus = 'processing';
+        computedStatus = "processing";
       } else {
         const isLatestCommit = invocationCommit.sha === latestCommit.sha;
-        
+
         if (isLatestCommit) {
-          computedStatus = 'up_to_date';
+          computedStatus = "up_to_date";
         } else {
-          const invocationAge = Date.now() - completedInvocation.createdAt.getTime();
+          const invocationAge =
+            Date.now() - completedInvocation.createdAt.getTime();
           if (invocationAge >= ONE_DAY_MS) {
-            computedStatus = 'out_of_date';
+            computedStatus = "out_of_date";
           } else {
-            computedStatus = 'processing';
+            computedStatus = "processing";
           }
         }
       }
     } else if (!latestCommit) {
       // If no commit data, can't determine status - return 'processing'
-      computedStatus = 'processing';
+      computedStatus = "processing";
     } else if (!computedStatus) {
-      computedStatus = 'processing';
+      computedStatus = "processing";
     }
 
     // Determine commit SHA
@@ -215,15 +239,15 @@ export async function GET(
           and(
             eq(githubRepoTrees.owner, owner),
             eq(githubRepoTrees.repo, repo),
-            eq(githubRepoTrees.treeSha, githubRepoCommit.treeSha)
-          )
+            eq(githubRepoTrees.treeSha, githubRepoCommit.treeSha),
+          ),
         )
         .where(
           and(
             eq(githubRepoCommit.owner, owner),
             eq(githubRepoCommit.repo, repo),
-            eq(githubRepoCommit.sha, commitSha)
-          )
+            eq(githubRepoCommit.sha, commitSha),
+          ),
         )
         .limit(1);
 
@@ -239,8 +263,8 @@ export async function GET(
     }
 
     span.setAttributes({
-      'repo.exists': true,
-      'repo.sync_status': computedStatus || '',
+      "repo.exists": true,
+      "repo.sync_status": computedStatus || "",
     });
 
     const response: StatusResponse = {
@@ -262,12 +286,13 @@ export async function GET(
     };
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error checking status:', error);
+    console.error("Error checking status:", error);
     span.recordException(error as Error);
-    const errorResponse: ErrorResponse = { error: 'Failed to check repository status' };
+    const errorResponse: ErrorResponse = {
+      error: "Failed to check repository status",
+    };
     return NextResponse.json(errorResponse, { status: 500 });
   } finally {
     span.end();
   }
 }
-

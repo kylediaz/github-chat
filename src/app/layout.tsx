@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display, Playfair } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Playfair_Display,
+  Playfair,
+} from "next/font/google";
 import "./globals.css";
 import { WindowProvider } from "@/contexts/window-context";
 import { WindowManager } from "@/components/window-manager";
@@ -26,7 +31,8 @@ const playfairDisplay = Playfair_Display({
 
 export const metadata: Metadata = {
   title: "Chat with Any GitHub Repository",
-  description: "Use AI to chat with the codebase of any GitHub repository in your browser.",
+  description:
+    "Use AI to chat with the codebase of any GitHub repository in your browser.",
 };
 
 export default function RootLayout({

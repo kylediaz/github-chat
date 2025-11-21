@@ -16,7 +16,7 @@ export default function Home() {
     setLoading(true);
 
     const trimmedUrl = repoUrl.trim();
-    
+
     // Comprehensive regex to match various GitHub URL formats:
     // - https://github.com/owner/repo
     // - http://github.com/owner/repo
@@ -25,7 +25,8 @@ export default function Home() {
     // - /owner/repo
     // - /owner/repo/
     // - owner/repo
-    const repoPattern = /^(?:https?:\/\/)?(?:www\.)?(?:github\.com\/)?\/?([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/?/i;
+    const repoPattern =
+      /^(?:https?:\/\/)?(?:www\.)?(?:github\.com\/)?\/?([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/?/i;
     const match = trimmedUrl.match(repoPattern);
 
     if (!match) {
@@ -35,10 +36,10 @@ export default function Home() {
     }
 
     const [, owner, repo] = match;
-    
+
     // Remove any trailing slashes or fragments from repo name
     const cleanRepo = repo.split(/[\/?#]/)[0];
-    
+
     if (!owner || !cleanRepo) {
       setError("Please enter a valid GitHub repository URL or owner/repo");
       setLoading(false);
@@ -52,7 +53,7 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-white px-4">
       <motion.div
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1}}
+        animate={{ opacity: 1 }}
         transition={{ duration: 0.2 }}
         className="w-full max-w-2xl"
       >
@@ -80,9 +81,7 @@ export default function Home() {
               {loading ? "Loading..." : "Start Chatting"}
             </button>
           </div>
-          {error && (
-            <p className="mt-3 text-red-600 text-sm">{error}</p>
-          )}
+          {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
         </form>
       </motion.div>
     </div>

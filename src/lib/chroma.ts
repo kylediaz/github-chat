@@ -1,10 +1,14 @@
-import { ChromaClient, CloudClient } from 'chromadb';
-import { ChromaCloudQwenEmbeddingFunction, ChromaCloudQwenEmbeddingModel, ChromaCloudQwenEmbeddingTask } from '@chroma-core/chroma-cloud-qwen';
-import { env } from './env';
-import { trace } from '@opentelemetry/api';
-import { z } from 'zod';
+import { ChromaClient, CloudClient } from "chromadb";
+import {
+  ChromaCloudQwenEmbeddingFunction,
+  ChromaCloudQwenEmbeddingModel,
+  ChromaCloudQwenEmbeddingTask,
+} from "@chroma-core/chroma-cloud-qwen";
+import { env } from "./env";
+import { trace } from "@opentelemetry/api";
+import { z } from "zod";
 
-const tracer = trace.getTracer('chroma');
+const tracer = trace.getTracer("chroma");
 
 const client = new CloudClient({
   apiKey: env.CHROMA_API_KEY,
@@ -17,18 +21,20 @@ const qwenEf = new ChromaCloudQwenEmbeddingFunction({
   task: ChromaCloudQwenEmbeddingTask.NL_TO_CODE,
 });
 
-const SYNC_API_BASE = 'https://sync.trychroma.com/api/v1';
+const SYNC_API_BASE = "https://sync.trychroma.com/api/v1";
 
 const EMBEDDING_CONFIG = {
   dense: {
-    model: 'Qwen/Qwen3-Embedding-0.6B',
+    model: "Qwen/Qwen3-Embedding-0.6B",
     task: null,
   },
   sparse: null,
 } as const;
 
 export const chromaDocumentMetadataSchema = z.object({
-  chunk_strategy: z.union([z.enum(['tree_sitter', 'lines']), z.string()]).optional(),
+  chunk_strategy: z
+    .union([z.enum(["tree_sitter", "lines"]), z.string()])
+    .optional(),
   document_key: z.string(),
   document_key_sha256: z.string(),
   end_col: z.number().optional(),
@@ -40,7 +46,9 @@ export const chromaDocumentMetadataSchema = z.object({
   version_key_sha256: z.string(),
 });
 
-export type ChromaDocumentMetadata = z.infer<typeof chromaDocumentMetadataSchema>;
+export type ChromaDocumentMetadata = z.infer<
+  typeof chromaDocumentMetadataSchema
+>;
 
 export interface QueryResult {
   id: string;
@@ -52,15 +60,15 @@ export interface QueryResult {
 export async function queryCollection(
   collectionName: string,
   queryText: string,
-  nResults: number = 10
+  nResults: number = 10,
 ): Promise<QueryResult[]> {
-  const span = tracer.startSpan('chroma.queryCollection');
+  const span = tracer.startSpan("chroma.queryCollection");
   span.setAttributes({
-    'collection.name': collectionName,
-    'query.nResults': nResults,
-    'query.length': queryText.length,
+    "collection.name": collectionName,
+    "query.nResults": nResults,
+    "query.length": queryText.length,
   });
-  
+
   try {
     const collection = await client.getCollection({
       name: collectionName,
@@ -73,7 +81,7 @@ export async function queryCollection(
     });
 
     const formattedResults: QueryResult[] = [];
-    
+
     if (results.ids && results.ids[0]) {
       for (let i = 0; i < results.ids[0].length; i++) {
         const rawMetadata = results.metadatas?.[0]?.[i];
@@ -91,7 +99,7 @@ export async function queryCollection(
       }
     }
 
-    span.setAttribute('results.count', formattedResults.length);
+    span.setAttribute("results.count", formattedResults.length);
     return formattedResults;
   } catch (error) {
     span.recordException(error as Error);
@@ -110,18 +118,18 @@ export interface CreateInvocationResponse {
 }
 
 export type InvocationStatus =
-  | 'pending'
-  | 'processing'
-  | 'cancelled'
-  | 'completed'
-  | 'failed';
+  | "pending"
+  | "processing"
+  | "cancelled"
+  | "completed"
+  | "failed";
 
 export interface InvocationStatusResponse {
   id: string;
   status:
-    | 'pending'
-    | 'processing'
-    | 'cancelled'
+    | "pending"
+    | "processing"
+    | "cancelled"
     | { complete: { duration_ms: number; finished_at: string } }
     | { failed: { error: string } };
   created_at: string;
@@ -132,42 +140,42 @@ export interface InvocationStatusResponse {
 }
 
 function normalizeStatus(
-  status: InvocationStatusResponse['status']
+  status: InvocationStatusResponse["status"],
 ): InvocationStatus {
-  if (typeof status === 'string') {
+  if (typeof status === "string") {
     return status as InvocationStatus;
   }
-  if ('complete' in status) {
-    return 'completed';
+  if ("complete" in status) {
+    return "completed";
   }
-  if ('failed' in status) {
-    return 'failed';
+  if ("failed" in status) {
+    return "failed";
   }
-  return 'pending';
+  return "pending";
 }
 
 export async function createSource(
   owner: string,
-  repo: string
+  repo: string,
 ): Promise<CreateSourceResponse> {
-  const span = tracer.startSpan('chroma.createSource');
+  const span = tracer.startSpan("chroma.createSource");
   span.setAttributes({
-    'github.owner': owner,
-    'github.repo': repo,
+    "github.owner": owner,
+    "github.repo": repo,
   });
 
   try {
     const response = await fetch(`${SYNC_API_BASE}/sources`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'accept': 'application/json',
-        'Content-Type': 'application/json',
-        'x-chroma-token': env.CHROMA_API_KEY,
+        accept: "application/json",
+        "Content-Type": "application/json",
+        "x-chroma-token": env.CHROMA_API_KEY,
       },
       body: JSON.stringify({
         github: {
           // This only works for public repos. Do not include github app id.
-          include_globs: ['**/*'],
+          include_globs: ["**/*"],
           repository: `${owner}/${repo}`,
         },
         database_name: env.CHROMA_DATABASE,
@@ -178,12 +186,14 @@ export async function createSource(
 
     if (!response.ok) {
       const errorText = await response.text();
-      span.recordException(new Error(`Failed to create Chroma source: ${errorText}`));
+      span.recordException(
+        new Error(`Failed to create Chroma source: ${errorText}`),
+      );
       throw new Error(`Failed to create Chroma source: ${errorText}`);
     }
 
     const data: CreateSourceResponse = await response.json();
-    span.setAttribute('source.id', data.source_id);
+    span.setAttribute("source.id", data.source_id);
     return data;
   } catch (error) {
     span.recordException(error as Error);
@@ -196,24 +206,24 @@ export async function createSource(
 export async function createInvocation(
   sourceId: string,
   commitSha: string,
-  collectionName: string
+  collectionName: string,
 ): Promise<CreateInvocationResponse> {
-  const span = tracer.startSpan('chroma.createInvocation');
+  const span = tracer.startSpan("chroma.createInvocation");
   span.setAttributes({
-    'source.id': sourceId,
-    'commit.sha': commitSha.substring(0, 7),
-    'collection.name': collectionName,
+    "source.id": sourceId,
+    "commit.sha": commitSha.substring(0, 7),
+    "collection.name": collectionName,
   });
 
   try {
     const response = await fetch(
       `${SYNC_API_BASE}/sources/${sourceId}/invocations`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-          'x-chroma-token': env.CHROMA_API_KEY,
+          accept: "application/json",
+          "Content-Type": "application/json",
+          "x-chroma-token": env.CHROMA_API_KEY,
         },
         body: JSON.stringify({
           ref_identifier: {
@@ -221,17 +231,19 @@ export async function createInvocation(
           },
           target_collection_name: collectionName,
         }),
-      }
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      span.recordException(new Error(`Failed to create Chroma invocation: ${errorText}`));
+      span.recordException(
+        new Error(`Failed to create Chroma invocation: ${errorText}`),
+      );
       throw new Error(`Failed to create Chroma invocation: ${errorText}`);
     }
 
     const data: CreateInvocationResponse = await response.json();
-    span.setAttribute('invocation.id', data.invocation_id);
+    span.setAttribute("invocation.id", data.invocation_id);
     return data;
   } catch (error) {
     span.recordException(error as Error);
@@ -252,34 +264,36 @@ export interface NormalizedInvocationStatus {
 }
 
 export async function getInvocationStatus(
-  invocationId: string
+  invocationId: string,
 ): Promise<NormalizedInvocationStatus> {
-  const span = tracer.startSpan('chroma.getInvocationStatus');
-  span.setAttribute('invocation.id', invocationId);
+  const span = tracer.startSpan("chroma.getInvocationStatus");
+  span.setAttribute("invocation.id", invocationId);
 
   try {
     const response = await fetch(
       `${SYNC_API_BASE}/invocations/${invocationId}`,
       {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'accept': 'application/json',
-          'Content-Type': 'application/json',
-          'x-chroma-token': env.CHROMA_API_KEY,
+          accept: "application/json",
+          "Content-Type": "application/json",
+          "x-chroma-token": env.CHROMA_API_KEY,
         },
-      }
+      },
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      span.recordException(new Error(`Failed to fetch invocation status: ${errorText}`));
+      span.recordException(
+        new Error(`Failed to fetch invocation status: ${errorText}`),
+      );
       throw new Error(`Failed to fetch invocation status: ${errorText}`);
     }
 
     const data: InvocationStatusResponse = await response.json();
     const normalizedStatus = normalizeStatus(data.status);
-    
-    span.setAttribute('invocation.status', normalizedStatus);
+
+    span.setAttribute("invocation.status", normalizedStatus);
 
     return {
       id: data.id,
@@ -296,4 +310,3 @@ export async function getInvocationStatus(
 }
 
 export { client as chromaClient };
-

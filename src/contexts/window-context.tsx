@@ -1,6 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  ReactNode,
+} from "react";
 
 export interface WindowState {
   id: string;
@@ -17,7 +23,7 @@ export interface WindowState {
 
 interface WindowContextType {
   windows: WindowState[];
-  openWindow: (window: Omit<WindowState, 'id' | 'zIndex'>) => string;
+  openWindow: (window: Omit<WindowState, "id" | "zIndex">) => string;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string) => void;
   maximizeWindow: (id: string) => void;
@@ -30,7 +36,7 @@ const WindowContext = createContext<WindowContextType | undefined>(undefined);
 export function useWindows() {
   const context = useContext(WindowContext);
   if (!context) {
-    throw new Error('useWindows must be used within a WindowProvider');
+    throw new Error("useWindows must be used within a WindowProvider");
   }
   return context;
 }
@@ -43,47 +49,68 @@ export function WindowProvider({ children }: WindowProviderProps) {
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [nextZIndex, setNextZIndex] = useState(1000);
 
-  const openWindow = useCallback((windowData: Omit<WindowState, 'id' | 'zIndex'>) => {
-    const id = `window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const newWindow: WindowState = {
-      ...windowData,
-      id,
-      zIndex: nextZIndex,
-    };
-    
-    setWindows(prev => [...prev, newWindow]);
-    setNextZIndex(prev => prev + 1);
-    return id;
-  }, [nextZIndex]);
+  const openWindow = useCallback(
+    (windowData: Omit<WindowState, "id" | "zIndex">) => {
+      const id = `window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const newWindow: WindowState = {
+        ...windowData,
+        id,
+        zIndex: nextZIndex,
+      };
+
+      setWindows((prev) => [...prev, newWindow]);
+      setNextZIndex((prev) => prev + 1);
+      return id;
+    },
+    [nextZIndex],
+  );
 
   const closeWindow = useCallback((id: string) => {
-    setWindows(prev => prev.filter(window => window.id !== id));
+    setWindows((prev) => prev.filter((window) => window.id !== id));
   }, []);
 
   const minimizeWindow = useCallback((id: string) => {
-    setWindows(prev => prev.map(window => 
-      window.id === id ? { ...window, isMinimized: !window.isMinimized } : window
-    ));
+    setWindows((prev) =>
+      prev.map((window) =>
+        window.id === id
+          ? { ...window, isMinimized: !window.isMinimized }
+          : window,
+      ),
+    );
   }, []);
 
   const maximizeWindow = useCallback((id: string) => {
-    setWindows(prev => prev.map(window => 
-      window.id === id ? { ...window, isMaximized: !window.isMaximized } : window
-    ));
+    setWindows((prev) =>
+      prev.map((window) =>
+        window.id === id
+          ? { ...window, isMaximized: !window.isMaximized }
+          : window,
+      ),
+    );
   }, []);
 
-  const updateWindow = useCallback((id: string, updates: Partial<WindowState>) => {
-    setWindows(prev => prev.map(window => 
-      window.id === id ? { ...window, ...updates } : window
-    ));
-  }, []);
+  const updateWindow = useCallback(
+    (id: string, updates: Partial<WindowState>) => {
+      setWindows((prev) =>
+        prev.map((window) =>
+          window.id === id ? { ...window, ...updates } : window,
+        ),
+      );
+    },
+    [],
+  );
 
-  const bringToFront = useCallback((id: string) => {
-    setWindows(prev => prev.map(window => 
-      window.id === id ? { ...window, zIndex: nextZIndex } : window
-    ));
-    setNextZIndex(prev => prev + 1);
-  }, [nextZIndex]);
+  const bringToFront = useCallback(
+    (id: string) => {
+      setWindows((prev) =>
+        prev.map((window) =>
+          window.id === id ? { ...window, zIndex: nextZIndex } : window,
+        ),
+      );
+      setNextZIndex((prev) => prev + 1);
+    },
+    [nextZIndex],
+  );
 
   const value: WindowContextType = {
     windows,
@@ -96,8 +123,6 @@ export function WindowProvider({ children }: WindowProviderProps) {
   };
 
   return (
-    <WindowContext.Provider value={value}>
-      {children}
-    </WindowContext.Provider>
+    <WindowContext.Provider value={value}>{children}</WindowContext.Provider>
   );
 }

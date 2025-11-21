@@ -1,10 +1,10 @@
 const requiredEnvVars = [
-  'CHROMA_API_KEY',
-  'CHROMA_TENANT',
-  'CHROMA_DATABASE',
-  'GITHUB_APP_ID',
-  'GITHUB_TOKEN',
-  'DATABASE_URL',
+  "CHROMA_API_KEY",
+  "CHROMA_TENANT",
+  "CHROMA_DATABASE",
+  "GITHUB_APP_ID",
+  "GITHUB_TOKEN",
+  "DATABASE_URL",
 ] as const;
 
 export function validateEnv(): void {
@@ -18,7 +18,7 @@ export function validateEnv(): void {
 
   if (missing.length > 0) {
     throw new Error(
-      `Missing required environment variables:\n${missing.map((v) => `  - ${v}`).join('\n')}\n\nPlease set these in your .env.local file.`
+      `Missing required environment variables:\n${missing.map((v) => `  - ${v}`).join("\n")}\n\nPlease set these in your .env.local file.`,
     );
   }
 }
@@ -32,4 +32,3 @@ export const env = {
   DATABASE_URL: process.env.DATABASE_URL!,
   OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
 };
-
