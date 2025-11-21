@@ -178,7 +178,7 @@ export default function ChatPage() {
                     ) : ''}
                   </div>
                   {repoInfo.repo_info.description && (
-                    <div className="whitespace-pre">
+                    <div>
                       {repoInfo.repo_info.description}
                     </div>
                   )}
@@ -191,7 +191,17 @@ export default function ChatPage() {
                 <span>loading files</span>
               </div>
             ) : repoInfo?.tree ? (
-              <RepoTree tree={repoInfo.tree} className="w-full" />
+              <>
+                <RepoTree
+                  tree={repoInfo.tree}
+                  className="w-full"
+                  autoScroll={syncStatus === 'processing'}
+                  scrollSpeed={10}
+                />
+                <span className="text-sm font-mono text-zinc-500">
+                  {syncStatus === 'processing' ? 'syncing...' : '✔︎ synced'}
+                </span>
+              </>
             ) : null}
             {messages.length === 0 && chatEnabled && (
               <motion.div

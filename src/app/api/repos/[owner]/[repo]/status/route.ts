@@ -4,8 +4,8 @@ import { eq, and, desc, sql } from 'drizzle-orm';
 import { trace } from '@opentelemetry/api';
 import { validateEnv } from '@/lib/env';
 import { transformTreeToHierarchy } from '@/lib/github';
-import { computeSyncStatus } from '@/lib/sync-status';
-import type { StatusResponse, ErrorResponse } from '@/lib/api-models';
+import { getInvocationStatus } from '@/lib/chroma';
+import type { StatusResponse, ErrorResponse, RepoSyncStatus } from '@/lib/api-models';
 
 const tracer = trace.getTracer('api');
 
@@ -42,9 +42,6 @@ export async function GET(
       };
       return NextResponse.json(response);
     }
-
-    // Compute sync status using shared utility
-    const computedStatus = await computeSyncStatus(owner, repo);
 
     // Fetch all related data efficiently using joins
     // Query 1: Get source with latest invocation and latest commit in one query
@@ -83,6 +80,114 @@ export async function GET(
           orderBy: [desc(githubSyncInvocations.createdAt)],
         })
       : null;
+
+    // Compute sync status from fetched data
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    let computedStatus: RepoSyncStatus | null = null;
+
+    // If no source exists, status is 'processing'
+    if (!source) {
+      computedStatus = 'processing';
+    } else if (!latestInvocation) {
+      // If no invocations exist, status is 'processing'
+      computedStatus = 'processing';
+    } else if (!completedInvocation) {
+      // If no completed invocations exist, check latest invocation status
+      // Handle cancelled as 'failed'
+      if (latestInvocation.status === 'cancelled') {
+        computedStatus = 'failed';
+      } else if (latestInvocation.status === 'failed') {
+        computedStatus = 'failed';
+      } else {
+        // Update invocation status if it's not in a terminal state
+        let currentInvocationStatus = latestInvocation.status;
+        const isTerminalState = 
+          latestInvocation.status === 'completed' || 
+          latestInvocation.status === 'failed' || 
+          latestInvocation.status === 'cancelled';
+
+        if (!isTerminalState) {
+          try {
+            const statusData = await getInvocationStatus(latestInvocation.invocationId);
+            currentInvocationStatus = statusData.status;
+
+            // Update database if status changed
+            if (currentInvocationStatus !== latestInvocation.status) {
+              await db.update(githubSyncInvocations)
+                .set({ status: currentInvocationStatus })
+                .where(eq(githubSyncInvocations.uuid, latestInvocation.uuid));
+            }
+
+            // Handle cancelled as 'failed'
+            if (currentInvocationStatus === 'cancelled') {
+              computedStatus = 'failed';
+            } else if (currentInvocationStatus === 'failed') {
+              computedStatus = 'failed';
+            } else if (currentInvocationStatus === 'pending' || currentInvocationStatus === 'processing') {
+              const invocationAge = Date.now() - latestInvocation.createdAt.getTime();
+              if (invocationAge < ONE_DAY_MS) {
+                computedStatus = 'processing';
+              } else {
+                computedStatus = 'failed';
+              }
+            }
+          } catch (error) {
+            console.error('Failed to fetch invocation status:', error);
+            // Continue with stored status if fetch fails
+            const invocationAge = Date.now() - latestInvocation.createdAt.getTime();
+            if (latestInvocation.status === 'pending' || latestInvocation.status === 'processing') {
+              if (invocationAge < ONE_DAY_MS) {
+                computedStatus = 'processing';
+              } else {
+                computedStatus = 'failed';
+              }
+            }
+          }
+        } else {
+          const invocationAge = Date.now() - latestInvocation.createdAt.getTime();
+          if (latestInvocation.status === 'pending' || latestInvocation.status === 'processing') {
+            if (invocationAge < ONE_DAY_MS) {
+              computedStatus = 'processing';
+            } else {
+              computedStatus = 'failed';
+            }
+          }
+        }
+      }
+    }
+
+    // If we have a completed invocation, check if it's up to date
+    if (completedInvocation && latestCommit) {
+      const invocationCommit = await db.query.githubRepoCommit.findFirst({
+        where: and(
+          eq(githubRepoCommit.owner, owner),
+          eq(githubRepoCommit.repo, repo),
+          eq(githubRepoCommit.sha, completedInvocation.commitSha)
+        ),
+      });
+
+      if (!invocationCommit) {
+        computedStatus = 'processing';
+      } else {
+        const isLatestCommit = invocationCommit.sha === latestCommit.sha;
+        
+        if (isLatestCommit) {
+          computedStatus = 'up_to_date';
+        } else {
+          const invocationAge = Date.now() - completedInvocation.createdAt.getTime();
+          if (invocationAge >= ONE_DAY_MS) {
+            computedStatus = 'out_of_date';
+          } else {
+            computedStatus = 'processing';
+          }
+        }
+      }
+    } else if (!latestCommit) {
+      // If no commit data, can't determine status - return 'processing'
+      computedStatus = 'processing';
+    } else if (!computedStatus) {
+      computedStatus = 'processing';
+    }
 
     // Determine commit SHA
     let commitSha: string | null = null;

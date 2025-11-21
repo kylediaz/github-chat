@@ -1,12 +1,11 @@
 import { openai } from '@ai-sdk/openai';
 import { convertToModelMessages, streamText, tool as createTool, stepCountIs } from 'ai';
 import type { UIMessage } from 'ai';
-import { db, githubSyncSources, githubSyncInvocations } from '@/db';
+import { db, githubRepoCommit, githubSyncInvocations } from '@/db';
 import { eq, and, desc } from 'drizzle-orm';
 import { z } from 'zod';
 import { validateEnv } from '@/lib/env';
 import { queryCollection } from '@/lib/chroma';
-import { computeSyncStatus } from '@/lib/sync-status';
 import type { ErrorResponse } from '@/lib/api-models';
 
 validateEnv();
@@ -22,59 +21,38 @@ export async function POST(
   try {
       const { messages }: { messages: UIMessage[] } = await req.json();
 
-      const source = await db.query.githubSyncSources.findFirst({
-        where: and(
-          eq(githubSyncSources.owner, owner),
-          eq(githubSyncSources.repo, repo)
-        ),
-      });
+      // Get commit with completed invocation, ordered by commit fetchedAt
+      const commitWithInvocation = await db
+        .select({
+          commit: githubRepoCommit,
+          invocation: githubSyncInvocations,
+        })
+        .from(githubRepoCommit)
+        .innerJoin(
+          githubSyncInvocations,
+          and(
+            eq(githubSyncInvocations.commitSha, githubRepoCommit.sha),
+            eq(githubSyncInvocations.status, 'completed')
+          )
+        )
+        .where(
+          and(
+            eq(githubRepoCommit.owner, owner),
+            eq(githubRepoCommit.repo, repo)
+          )
+        )
+        .orderBy(desc(githubRepoCommit.fetchedAt))
+        .limit(1);
 
-      // Check if repository is up to date
-      const syncStatus = await computeSyncStatus(owner, repo);
-      
-      if (syncStatus !== 'up_to_date') {
-        const errorResponse: ErrorResponse = { 
-          error: syncStatus === 'failed' 
-            ? 'Repository sync failed' 
-            : 'Repository not synced yet' 
-        };
-        return new Response(
-          JSON.stringify(errorResponse),
-          { status: 400 }
-        );
-      }
-
-      const source = await db.query.githubSyncSources.findFirst({
-        where: and(
-          eq(githubSyncSources.owner, owner),
-          eq(githubSyncSources.repo, repo)
-        ),
-      });
-
-      if (!source) {
-        const errorResponse: ErrorResponse = { error: 'Repository source not found' };
-        return new Response(
-          JSON.stringify(errorResponse),
-          { status: 404 }
-        );
-      }
-
-      // Get the latest completed invocation
-      const latestInvocation = await db.query.githubSyncInvocations.findFirst({
-        where: and(
-          eq(githubSyncInvocations.sourceUuid, source.uuid),
-          eq(githubSyncInvocations.status, 'completed')
-        ),
-        orderBy: [desc(githubSyncInvocations.createdAt)],
-      });
-
-      if (!latestInvocation) {
+      if (commitWithInvocation.length === 0) {
         const errorResponse: ErrorResponse = { error: 'No completed sync found' };
         return new Response(
           JSON.stringify(errorResponse),
           { status: 400 }
         );
       }
+
+      const latestInvocation = commitWithInvocation[0].invocation;
 
       const collectionName = latestInvocation.targetCollectionName;
       const commitSha = latestInvocation.commitSha;
