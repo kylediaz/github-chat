@@ -11,6 +11,24 @@ This is a Next.js application that enables AI-powered chat with GitHub repositor
 
 The database tracks repositories, commits, Chroma sync sources, and invocation status. Repositories are automatically re-synced if the last invocation failed or if both the last commit fetch and last invocation are older than 24 hours.
 
+## API
+
+The api endpoints are designed not to have race conditions using row-level locking.
+
+### /api/repos/[owner]/[repo]/chat
+
+LLM chat. It provides the latest successful invocation collection as a resource for its tools.
+
+### GET /api/repos/[owner]/[repo]/status
+
+1. Gets the stored repo, latest commit, corresponding repo tree, and invocation if it exists.
+2. If the invocation exists but is out of date (>2s old) and is not terminal, it will get the latest value from the chroma sync API.
+   In order to prevent multiple simultaneus requests from making my API make multiple extraneous requests to the chroma sync API for the same
+   resource, this route uses a row-level lock to make sure that only one concurrent request is able to make the API call to the external chroma sync API
+   and update the value in the row.
+3. Return the results. If the current value is out of date and the row has a lock (meaning something is currently updating the value), then immediately
+   return the out of date value currently stored in the DB.
+
 ## Chroma Sync API
 
 Base URL: `https://sync.trychroma.com/api/v1`

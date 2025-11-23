@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { TreeNode } from "@/lib/github";
+import type { TreeNode } from "@/types/github";
 import { cn } from "@/lib/utils";
 
 interface RepoTreeProps {
@@ -9,7 +9,7 @@ interface RepoTreeProps {
   className?: string;
   previewLineCount?: number;
   autoScroll?: boolean;
-  scrollSpeed?: number; // milliseconds between scroll steps
+  scrollSpeed?: number;
 }
 
 function collectFilePaths(
@@ -19,7 +19,6 @@ function collectFilePaths(
 ): { path: string; size?: string }[] {
   const files: { path: string; size?: string }[] = [];
 
-  // Skip the root node name, start building paths from its children
   if (isRoot) {
     if (
       node.type === "directory" &&
@@ -71,18 +70,15 @@ export function RepoTree({
   const autoScrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const userInteractedRef = useRef(false);
 
-  // Calculate based on current offset
   const hasMoreAbove = lineOffset > 0;
   const defaultLinesToShow = previewLineCount;
 
-  // When both "..." are shown, show one less line to compensate
   const wouldHaveMoreBelow = lineOffset + defaultLinesToShow < totalLines;
   const linesToShow =
     hasMoreAbove && wouldHaveMoreBelow
       ? previewLineCount - 1
       : previewLineCount;
 
-  // Now recalculate hasMoreBelow with the actual linesToShow
   const hasMoreBelow = lineOffset + linesToShow < totalLines;
 
   const maxOffset = Math.max(0, totalLines - linesToShow);
@@ -92,14 +88,12 @@ export function RepoTree({
     clampedOffset + linesToShow,
   );
 
-  // Auto-scroll animation when processing
   useEffect(() => {
     if (!autoScroll || userInteractedRef.current || totalLines === 0) {
       if (autoScrollIntervalRef.current) {
         clearInterval(autoScrollIntervalRef.current);
         autoScrollIntervalRef.current = null;
       }
-      // Reset user interaction flag when auto-scroll stops
       if (!autoScroll) {
         userInteractedRef.current = false;
       }
@@ -107,11 +101,10 @@ export function RepoTree({
     }
 
     const maxOffset = Math.max(0, totalLines - previewLineCount);
-    let direction = 1; // 1 for down, -1 for up
+    let direction = 1;
 
     autoScrollIntervalRef.current = setInterval(() => {
       setLineOffset((prev) => {
-        // Change direction at boundaries
         if (prev >= maxOffset) {
           direction = -1;
         } else if (prev <= 0) {
@@ -131,13 +124,11 @@ export function RepoTree({
     };
   }, [autoScroll, totalLines, previewLineCount, scrollSpeed]);
 
-  // Manual scroll handling
   useEffect(() => {
     const treeElement = treeRef.current;
     if (!treeElement) return;
 
     const handleWheel = (e: WheelEvent) => {
-      // Stop auto-scroll when user interacts
       if (autoScroll && !userInteractedRef.current) {
         userInteractedRef.current = true;
         if (autoScrollIntervalRef.current) {
@@ -163,7 +154,6 @@ export function RepoTree({
           const newOffset = prev + direction * linesToMove;
           const totalLinesCount = totalLines;
 
-          // Recalculate for the new offset
           const willHaveMoreAbove = newOffset > 0;
           const willHaveMoreBelow =
             newOffset + defaultLinesToShow < totalLinesCount;
@@ -219,3 +209,4 @@ export function RepoTree({
     </div>
   );
 }
+

@@ -1,20 +1,18 @@
 "use client";
 
 import React from "react";
-import { CodeBlock } from "@/components/code-block";
-import { GroupedSearchResult } from "@/lib/models";
+import { CodeBlock } from "@/components/chat/code-block";
+import type { GroupedSearchResult } from "@/types/github";
 
 interface SearchResultWindowProps {
   groupedResult: GroupedSearchResult;
 }
 
 export function SearchResultWindow({ groupedResult }: SearchResultWindowProps) {
-  // Sort snippets by start line number
   const sortedSnippets = [...groupedResult.snippets].sort(
     (a, b) => a.start_line - b.start_line,
   );
 
-  // Combine consecutive snippets
   const combinedSnippets = sortedSnippets.reduce(
     (acc, snippet) => {
       if (acc.length === 0) {
@@ -24,9 +22,7 @@ export function SearchResultWindow({ groupedResult }: SearchResultWindowProps) {
 
       const lastSnippet = acc[acc.length - 1];
 
-      // Check if current snippet is consecutive to the last one
       if (snippet.start_line <= lastSnippet.end_line + 1) {
-        // Combine the snippets
         const combinedContent = lastSnippet.content + "\n" + snippet.content;
         acc[acc.length - 1] = {
           content: combinedContent,
@@ -34,7 +30,6 @@ export function SearchResultWindow({ groupedResult }: SearchResultWindowProps) {
           end_line: Math.max(lastSnippet.end_line, snippet.end_line),
         };
       } else {
-        // Add as separate snippet
         acc.push(snippet);
       }
 
@@ -45,7 +40,6 @@ export function SearchResultWindow({ groupedResult }: SearchResultWindowProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header with file info */}
       <div className="p-4 border-b border-gray-200 bg-gray-50">
         <h3
           className="font-semibold text-sm truncate"
@@ -55,7 +49,6 @@ export function SearchResultWindow({ groupedResult }: SearchResultWindowProps) {
         </h3>
       </div>
 
-      {/* Code snippets */}
       <div className="flex-1 overflow-auto p-4">
         <div className="space-y-2">
           {combinedSnippets.map((snippet, index) => (
@@ -69,7 +62,6 @@ export function SearchResultWindow({ groupedResult }: SearchResultWindowProps) {
           ))}
         </div>
 
-        {/* Additional metadata */}
         <div className="mt-6 pt-4 border-t border-gray-200">
           <div className="grid grid-cols-1 gap-3 text-sm">
             <div>

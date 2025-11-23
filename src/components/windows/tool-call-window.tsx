@@ -118,7 +118,6 @@ export function ToolCallWindow({
     );
   }
 
-  // Fallback for unknown tools
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="flex-1 overflow-auto p-4 bg-white">

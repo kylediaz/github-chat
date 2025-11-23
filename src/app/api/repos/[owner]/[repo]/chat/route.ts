@@ -10,8 +10,8 @@ import { db, githubRepoCommit, githubSyncInvocations } from "@/db";
 import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { validateEnv } from "@/lib/env";
-import { queryCollection } from "@/lib/chroma";
-import type { ErrorResponse } from "@/lib/api-models";
+import { queryCollection } from "@/services/chroma/client";
+import type { ErrorResponse } from "@/types/api";
 
 validateEnv();
 
@@ -26,7 +26,6 @@ export async function POST(
   try {
     const { messages }: { messages: UIMessage[] } = await req.json();
 
-    // Get commit with completed invocation, ordered by commit fetchedAt
     const commitWithInvocation = await db
       .select({
         commit: githubRepoCommit,
@@ -135,3 +134,4 @@ You can make at most 2 tool calls every time the user asks a question. Try to an
     return new Response(JSON.stringify(errorResponse), { status: 500 });
   }
 }
+

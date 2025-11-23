@@ -2,7 +2,7 @@ import { marked } from "marked";
 import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { components } from "@/components/markdown";
+import { components } from "./markdown";
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {
   const tokens = marked.lexer(markdown);
@@ -42,3 +42,4 @@ export const MemoizedMarkdown = memo(
 );
 
 MemoizedMarkdown.displayName = "MemoizedMarkdown";
+

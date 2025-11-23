@@ -3,18 +3,18 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
-import { Message } from "@/components/message";
-import { useScrollToBottom } from "@/components/use-scroll-to-bottom";
-import { ChatInput } from "@/components/chat-input";
+import { Message } from "@/components/chat/message";
+import { useScrollToBottom } from "@/components/chat/use-scroll-to-bottom";
+import { ChatInput } from "@/components/chat/chat-input";
 import { motion } from "framer-motion";
 import { DefaultChatTransport } from "ai";
-import { AnimatedEllipsis, Spinner } from "@/components/misc";
-import { RepoTree } from "@/components/repo-tree";
+import { AnimatedEllipsis, Spinner } from "@/components/shared/misc";
+import { RepoTree } from "@/components/chat/repo-tree";
 import type {
   StatusResponse,
   ErrorResponse,
   RepoSyncStatus,
-} from "@/lib/api-models";
+} from "@/types/api";
 
 export default function ChatPage() {
   const params = useParams();
@@ -36,7 +36,7 @@ export default function ChatPage() {
     error: chatError,
   } = useChat({
     transport: new DefaultChatTransport({
-      api: `/api/chat/${owner}/${repo}`,
+      api: `/api/repos/${owner}/${repo}/chat`,
     }),
   });
   console.log(messages, status, chatError);

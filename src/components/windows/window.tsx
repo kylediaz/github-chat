@@ -105,11 +105,9 @@ export function Window({ window }: WindowProps) {
           newWidth = windowStart.width + deltaX;
         }
 
-        // Minimum size constraints
         newWidth = Math.max(200, newWidth);
         newHeight = Math.max(150, newHeight);
 
-        // Adjust position if we hit minimum width/height
         if (newWidth === 200 && resizeDirection.includes("w")) {
           newX = windowStart.x + windowStart.width - 200;
         }
@@ -197,13 +195,11 @@ export function Window({ window }: WindowProps) {
           }
         }
       `}</style>
-      {/* Window Header */}
       <div
         ref={headerRef}
         className="bg-gray-50 px-3 py-1 flex items-center relative cursor-move"
         onMouseDown={handleMouseDown}
       >
-        {/* macOS-style buttons on the left */}
         <div className="flex items-center gap-2 absolute left-3 cursor-default group">
           <button
             className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center"
@@ -238,7 +234,6 @@ export function Window({ window }: WindowProps) {
           </button>
         </div>
 
-        {/* Centered title */}
         <div className="flex-1 text-center">
           <div className="text-xs font-medium text-gray-700 opacity-0 truncate mx-16">
             {window.title}
@@ -246,7 +241,6 @@ export function Window({ window }: WindowProps) {
         </div>
       </div>
 
-      {/* Window Content */}
       <div
         className="flex-1 overflow-auto"
         style={{ height: "calc(100% - 40px)" }}
@@ -254,10 +248,8 @@ export function Window({ window }: WindowProps) {
         {window.content}
       </div>
 
-      {/* Resize Handles */}
       {!window.isMaximized && (
         <>
-          {/* Corner handles */}
           <div
             className="absolute top-0 left-0 w-2 h-2 cursor-nw-resize"
             onMouseDown={(e) => handleResizeMouseDown(e, "nw")}
@@ -275,7 +267,6 @@ export function Window({ window }: WindowProps) {
             onMouseDown={(e) => handleResizeMouseDown(e, "se")}
           />
 
-          {/* Edge handles */}
           <div
             className="absolute top-0 left-2 right-2 h-1 cursor-n-resize"
             onMouseDown={(e) => handleResizeMouseDown(e, "n")}
@@ -297,3 +288,4 @@ export function Window({ window }: WindowProps) {
     </div>
   );
 }
+

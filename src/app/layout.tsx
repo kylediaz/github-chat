@@ -7,7 +7,7 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import { WindowProvider } from "@/contexts/window-context";
-import { WindowManager } from "@/components/window-manager";
+import { WindowManager } from "@/components/windows/window-manager";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

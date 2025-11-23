@@ -2,22 +2,19 @@ import { ReactNode, useState } from "react";
 import { UIDataTypes, UIMessage, UIMessagePart, UITools } from "ai";
 import { motion } from "framer-motion";
 
-import { CodeBlock } from "./code-block";
+import { CodeBlock } from "@/components/chat/code-block";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "./reasoning";
-import { MemoizedMarkdown } from "./memoized-markdown";
+import { MemoizedMarkdown } from "@/components/chat/memoized-markdown";
 import { useWindows } from "@/contexts/window-context";
 import { ToolCallWindow } from "@/components/windows/tool-call-window";
-import { AnimatedEllipsis } from "@/components/misc";
+import { AnimatedEllipsis } from "@/components/shared/misc";
 
-// Constants
 const MAX_VISIBLE_RESULTS = 6;
 
-// Types
 export interface MessageProps {
   message: UIMessage;
 }
 
-// Helper functions
 function parseToolOutput(output: any): { searchResults: any | null } {
   if (output?.results && Array.isArray(output.results)) {
     return { searchResults: { results: output.results } };
@@ -33,7 +30,6 @@ function formatParameterValue(value: any): string {
   return `"${String(value)}"`;
 }
 
-// Components
 export function Message({ message }: MessageProps): ReactNode {
   const { role } = message;
 
@@ -80,12 +76,10 @@ function MessageContent({
   return (
     <>
       {parts.map((part, index) => {
-        // Handle step-start (ignore it)
         if (part.type === "step-start") {
           return null;
         }
 
-        // Handle tool-* types (e.g., tool-searchFiles, tool-searchCode)
         if (typeof part.type === "string" && part.type.startsWith("tool-")) {
           return <ToolInvocation key={index} part={part} />;
         }
@@ -128,7 +122,6 @@ function ToolInvocation({
   part: UIMessagePart<UIDataTypes, UITools>;
 }) {
   const partAny = part as any;
-  // Extract tool name from type if it's tool-{name} format, otherwise use toolName property
   const toolName =
     typeof part.type === "string" && part.type.startsWith("tool-")
       ? part.type.replace("tool-", "")
@@ -295,3 +288,4 @@ function SearchResults({ results }: { results: any }) {
     </div>
   );
 }
+

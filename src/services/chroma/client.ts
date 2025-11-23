@@ -4,9 +4,17 @@ import {
   ChromaCloudQwenEmbeddingModel,
   ChromaCloudQwenEmbeddingTask,
 } from "@chroma-core/chroma-cloud-qwen";
-import { env } from "./env";
+import { env } from "@/lib/env";
 import { trace } from "@opentelemetry/api";
-import { z } from "zod";
+import {
+  chromaDocumentMetadataSchema,
+  type QueryResult,
+  type CreateSourceResponse,
+  type CreateInvocationResponse,
+  type InvocationStatus,
+  type InvocationStatusResponse,
+  type NormalizedInvocationStatus,
+} from "@/types/chroma";
 
 const tracer = trace.getTracer("chroma");
 
@@ -31,30 +39,19 @@ const EMBEDDING_CONFIG = {
   sparse: null,
 } as const;
 
-export const chromaDocumentMetadataSchema = z.object({
-  chunk_strategy: z
-    .union([z.enum(["tree_sitter", "lines"]), z.string()])
-    .optional(),
-  document_key: z.string(),
-  document_key_sha256: z.string(),
-  end_col: z.number().optional(),
-  end_line: z.number().optional(),
-  language: z.string().optional(),
-  start_col: z.number().optional(),
-  start_line: z.number().optional(),
-  version_key: z.string(),
-  version_key_sha256: z.string(),
-});
-
-export type ChromaDocumentMetadata = z.infer<
-  typeof chromaDocumentMetadataSchema
->;
-
-export interface QueryResult {
-  id: string;
-  distance: number;
-  metadata: ChromaDocumentMetadata;
-  document: string;
+function normalizeStatus(
+  status: InvocationStatusResponse["status"],
+): InvocationStatus {
+  if (typeof status === "string") {
+    return status as InvocationStatus;
+  }
+  if ("complete" in status) {
+    return "completed";
+  }
+  if ("failed" in status) {
+    return "failed";
+  }
+  return "pending";
 }
 
 export async function queryCollection(
@@ -109,51 +106,6 @@ export async function queryCollection(
   }
 }
 
-export interface CreateSourceResponse {
-  source_id: string;
-}
-
-export interface CreateInvocationResponse {
-  invocation_id: string;
-}
-
-export type InvocationStatus =
-  | "pending"
-  | "processing"
-  | "cancelled"
-  | "completed"
-  | "failed";
-
-export interface InvocationStatusResponse {
-  id: string;
-  status:
-    | "pending"
-    | "processing"
-    | "cancelled"
-    | { complete: { duration_ms: number; finished_at: string } }
-    | { failed: { error: string } };
-  created_at: string;
-  metadata?: {
-    collection_name?: string;
-    database_name?: string;
-  };
-}
-
-function normalizeStatus(
-  status: InvocationStatusResponse["status"],
-): InvocationStatus {
-  if (typeof status === "string") {
-    return status as InvocationStatus;
-  }
-  if ("complete" in status) {
-    return "completed";
-  }
-  if ("failed" in status) {
-    return "failed";
-  }
-  return "pending";
-}
-
 export async function createSource(
   owner: string,
   repo: string,
@@ -174,7 +126,6 @@ export async function createSource(
       },
       body: JSON.stringify({
         github: {
-          // This only works for public repos. Do not include github app id.
           include_globs: ["**/*"],
           repository: `${owner}/${repo}`,
         },
@@ -253,16 +204,6 @@ export async function createInvocation(
   }
 }
 
-export interface NormalizedInvocationStatus {
-  id: string;
-  status: InvocationStatus;
-  created_at: string;
-  metadata?: {
-    collection_name?: string;
-    database_name?: string;
-  };
-}
-
 export async function getInvocationStatus(
   invocationId: string,
 ): Promise<NormalizedInvocationStatus> {
@@ -309,4 +250,3 @@ export async function getInvocationStatus(
   }
 }
 
-export { client as chromaClient };
