@@ -33,6 +33,13 @@ export const metadata: Metadata = {
   title: "Chat with Any GitHub Repository",
   description:
     "Use AI to chat with the codebase of any GitHub repository in your browser.",
+  openGraph: {
+    images: ["/social-preview.png"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/social-preview.png"],
+  },
 };
 
 export default function RootLayout({
