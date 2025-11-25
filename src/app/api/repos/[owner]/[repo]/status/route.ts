@@ -132,20 +132,11 @@ function formatResponse(state: CurrentState): StatusResponse {
   const isAvailable = state.repo?.available === true;
 
   let syncStatus: StatusResponse["sync_status"] = null;
-  if (state.invocation) {
-    if (state.invocation.status === "completed") {
-      syncStatus = "up_to_date";
-    } else if (state.invocation.status === "failed") {
-      syncStatus = "failed";
-    } else if (
-      state.invocation.status === "processing" ||
-      state.invocation.status === "pending"
-    ) {
-      syncStatus = "processing";
-    } else {
-      syncStatus = "out_of_date";
-    }
-  } else if (state.latestCommit && state.source) {
+  if (!state.state || !state.state.latestProcessedCommitSha) {
+    syncStatus = "processing";
+  } else if (state.state.latestCommitSha === state.state.latestProcessedCommitSha) {
+    syncStatus = "up_to_date";
+  } else {
     syncStatus = "out_of_date";
   }
 
@@ -157,15 +148,15 @@ function formatResponse(state: CurrentState): StatusResponse {
     is_private: repoDetails?.private ?? false,
     repo_info: repoDetails
       ? {
-          fullName: state.repo?.name ?? "",
-          description: repoDetails.description,
-          htmlUrl: repoDetails.htmlUrl,
-          language: repoDetails.language,
-          stargazersCount: repoDetails.stargazersCount,
-          forksCount: repoDetails.forksCount,
-          watchersCount: repoDetails.watchersCount,
-          openIssuesCount: repoDetails.openIssuesCount,
-        }
+        fullName: state.repo?.name ?? "",
+        description: repoDetails.description,
+        htmlUrl: repoDetails.htmlUrl,
+        language: repoDetails.language,
+        stargazersCount: repoDetails.stargazersCount,
+        forksCount: repoDetails.forksCount,
+        watchersCount: repoDetails.watchersCount,
+        openIssuesCount: repoDetails.openIssuesCount,
+      }
       : null,
     commit_sha: state.latestCommit?.sha ?? null,
     tree,
