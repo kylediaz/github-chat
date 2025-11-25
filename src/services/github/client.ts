@@ -36,9 +36,7 @@ export async function getRepository(
     return {
       type: "repo",
 
-      owner,
-      repo,
-      fullName: data.full_name,
+      name: data.full_name,
       description: data.description,
       defaultBranch: data.default_branch,
       htmlUrl: data.html_url,
@@ -55,12 +53,12 @@ export async function getRepository(
   } catch (error: any) {
     if (error.status === 404) {
       span.setAttribute("error.type", "not_found");
-      return { notFound: true };
+      return { type: "error", notFound: true };
     }
 
     if (error.status === 403) {
       span.setAttribute("error.type", "private_inaccessible");
-      return { private: true, accessible: false };
+      return { type: "error", private: true, accessible: false };
     }
 
     span.recordException(error);

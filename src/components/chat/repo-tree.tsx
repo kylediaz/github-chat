@@ -1,68 +1,47 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import type { TreeNode } from "@/types/github";
+import { useState, useEffect, useRef, useMemo } from "react";
+import type { GitHubTree } from "@/types/github";
 import { cn } from "@/lib/utils";
 
 interface RepoTreeProps {
-  tree: TreeNode;
+  tree: GitHubTree["tree"];
+  repoUrl: string;
+  commitSha: string;
   className?: string;
   previewLineCount?: number;
   autoScroll?: boolean;
   scrollSpeed?: number;
 }
 
-function collectFilePaths(
-  node: TreeNode,
-  currentPath: string = "",
-  isRoot: boolean = true,
-): { path: string; size?: string }[] {
-  const files: { path: string; size?: string }[] = [];
-
-  if (isRoot) {
-    if (
-      node.type === "directory" &&
-      node.children &&
-      node.children.length > 0
-    ) {
-      node.children.forEach((child) => {
-        files.push(...collectFilePaths(child, "", false));
-      });
-    }
-  } else {
-    const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name;
-
-    if (node.type === "file") {
-      files.push({
-        path: fullPath,
-        size: node.size,
-      });
-    }
-
-    if (
-      node.type === "directory" &&
-      node.children &&
-      node.children.length > 0
-    ) {
-      node.children.forEach((child) => {
-        files.push(...collectFilePaths(child, fullPath, false));
-      });
-    }
-  }
-
-  return files;
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)}${sizes[i]}`;
 }
 
 export function RepoTree({
   tree,
+  repoUrl,
+  commitSha,
   className,
   previewLineCount = 6,
   autoScroll = false,
   scrollSpeed = 300,
 }: RepoTreeProps) {
-  const filePaths = collectFilePaths(tree).sort((a, b) =>
-    a.path.localeCompare(b.path),
-  );
+  const filePaths = useMemo(() => {
+    return tree
+      .filter((entry) => entry.type === "blob")
+      .map((entry) => ({
+        path: entry.path,
+        size: entry.size ? formatFileSize(entry.size) : undefined,
+        url: `${repoUrl}/blob/${commitSha}/${entry.path}`,
+      }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  }, [tree, repoUrl, commitSha]);
+
   const totalLines = filePaths.length;
   const [lineOffset, setLineOffset] = useState(0);
   const treeRef = useRef<HTMLDivElement>(null);
@@ -100,21 +79,13 @@ export function RepoTree({
       return;
     }
 
-    const maxOffset = Math.max(0, totalLines - previewLineCount);
-    let direction = 1;
+    const baseSpeed = scrollSpeed;
+    const minSpeed = 50;
+    const speedFactor = Math.max(minSpeed, baseSpeed - totalLines * 2);
 
     autoScrollIntervalRef.current = setInterval(() => {
-      setLineOffset((prev) => {
-        if (prev >= maxOffset) {
-          direction = -1;
-        } else if (prev <= 0) {
-          direction = 1;
-        }
-
-        const newOffset = prev + direction;
-        return Math.max(0, Math.min(newOffset, maxOffset));
-      });
-    }, scrollSpeed);
+      setLineOffset((prev) => (prev + 1) % totalLines);
+    }, speedFactor);
 
     return () => {
       if (autoScrollIntervalRef.current) {
@@ -122,7 +93,7 @@ export function RepoTree({
         autoScrollIntervalRef.current = null;
       }
     };
-  }, [autoScroll, totalLines, previewLineCount, scrollSpeed]);
+  }, [autoScroll, totalLines, scrollSpeed]);
 
   useEffect(() => {
     const treeElement = treeRef.current;
@@ -185,22 +156,24 @@ export function RepoTree({
           const actualIndex = clampedOffset + index;
           const isLastInList = actualIndex === totalLines - 1;
           const prefix = isLastInList ? "└── " : "├── ";
-          const displayPath = prefix + item.path;
 
-          if (item.size) {
-            return (
-              <div
-                key={actualIndex}
-                className="flex items-center whitespace-pre"
-              >
-                <span className="flex-1 truncate">{displayPath}</span>
-                <span className="text-right ml-auto">({item.size})</span>
-              </div>
-            );
-          }
           return (
-            <div key={actualIndex} className="whitespace-pre">
-              {displayPath}
+            <div
+              key={actualIndex}
+              className="flex items-center whitespace-pre"
+            >
+              <span className="whitespace-pre">{prefix}</span>
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate hover:underline"
+              >
+                {item.path}
+              </a>
+              {item.size && (
+                <span className="text-right ml-auto pl-2">({item.size})</span>
+              )}
             </div>
           );
         })}
@@ -209,4 +182,3 @@ export function RepoTree({
     </div>
   );
 }
-

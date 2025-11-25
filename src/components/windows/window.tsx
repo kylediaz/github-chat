@@ -183,7 +183,7 @@ export function Window({ window }: WindowProps) {
   return (
     <div
       ref={windowRef}
-      className="bg-white border-[.75px] border-black rounded-xs overflow-hidden select-none"
+      className="bg-white border-[1.5px] border-black rounded-xs overflow-hidden select-none"
       style={windowStyle}
       onClick={handleWindowClick}
     >

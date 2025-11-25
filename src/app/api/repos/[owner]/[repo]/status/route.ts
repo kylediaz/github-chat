@@ -14,8 +14,7 @@ import {
 } from "@/db";
 import { eq, and, sql } from "drizzle-orm";
 import { validateEnv } from "@/lib/env";
-import type { TreeNode } from "@/types/github";
-import { transformTreeToHierarchy } from "@/lib/utils";
+import type { GitHubTree } from "@/types/github";
 import {
   refreshRepo,
   refreshCommit,
@@ -150,10 +149,7 @@ function formatResponse(state: CurrentState): StatusResponse {
     syncStatus = "out_of_date";
   }
 
-  let tree: TreeNode | null = null;
-  if (state.tree?.tree) {
-    tree = transformTreeToHierarchy(state.tree.tree as any);
-  }
+  const tree = (state.tree?.tree as GitHubTree["tree"]) ?? null;
 
   return {
     exists: isAvailable,

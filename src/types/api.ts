@@ -1,4 +1,4 @@
-import type { TreeNode } from "./github";
+import type { GitHubTree } from "./github";
 
 export interface RepoInfo {
   fullName: string;
@@ -27,7 +27,7 @@ export interface StatusResponse {
   is_private: boolean;
   repo_info: RepoInfo | null;
   commit_sha: string | null;
-  tree: TreeNode | null;
+  tree: GitHubTree["tree"] | null;
 }
 
 export interface ErrorResponse {

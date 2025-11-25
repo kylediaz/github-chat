@@ -56,57 +56,35 @@ export default function ChatPage() {
   );
 
   useEffect(() => {
-    async function checkAndSync() {
+    async function checkStatus() {
       try {
-        const statusResponse = await fetch(
-          `/api/repos/${owner}/${repo}/status`,
-        );
-        const statusData: StatusResponse = await statusResponse.json();
+        const response = await fetch(`/api/repos/${owner}/${repo}/status`);
+        const data: StatusResponse | ErrorResponse = await response.json();
 
-        setRepoInfo(statusData);
-        setSyncStatus(statusData.sync_status);
-        setCommitSha(statusData.commit_sha);
-
-        if (!statusData.exists || statusData.is_private) {
-          const syncResponse = await fetch(`/api/repos/${owner}/${repo}/sync`, {
-            method: "POST",
-          });
-
-          if (!syncResponse.ok) {
-            const errorData: ErrorResponse = await syncResponse.json();
-            setError(errorData.error || "Failed to sync repository");
-            return;
-          }
+        if (!response.ok || "error" in data) {
+          setError((data as ErrorResponse).error || "Failed to check repository");
+          return;
         }
 
-        if (statusData.sync_status === "up_to_date") {
+        setRepoInfo(data);
+        setSyncStatus(data.sync_status);
+        setCommitSha(data.commit_sha);
+
+        if (!data.exists) {
+          setError("Repository not found");
+          return;
+        }
+
+        if (data.is_private) {
+          setError("Private repositories are not supported");
+          return;
+        }
+
+        if (data.sync_status === "up_to_date") {
           setChatEnabled(true);
-          setSyncStatus("up_to_date");
+        } else if (data.sync_status === "failed") {
+          setError("Sync failed. Please try again.");
         } else {
-          // Trigger sync for 'processing' or 'out_of_date' states (sync endpoint is idempotent)
-          if (
-            statusData.sync_status === "processing" ||
-            statusData.sync_status === "out_of_date"
-          ) {
-            const syncResponse = await fetch(
-              `/api/repos/${owner}/${repo}/sync`,
-              {
-                method: "POST",
-              },
-            );
-
-            if (!syncResponse.ok) {
-              const errorData: ErrorResponse = await syncResponse.json();
-              setError(errorData.error || "Failed to start sync");
-              return;
-            }
-          }
-
-          if (statusData.sync_status === "failed") {
-            setError("Sync failed. Please try again.");
-            return;
-          }
-
           setIsPolling(true);
         }
       } catch (err) {
@@ -115,7 +93,7 @@ export default function ChatPage() {
       }
     }
 
-    checkAndSync();
+    checkStatus();
   }, [owner, repo]);
 
   useEffect(() => {
@@ -223,16 +201,25 @@ export default function ChatPage() {
                 <Spinner />
                 <span>loading files</span>
               </div>
-            ) : repoInfo?.tree ? (
+            ) : repoInfo?.tree && commitSha ? (
               <>
                 <RepoTree
                   tree={repoInfo.tree}
+                  repoUrl={repoInfo.repo_info?.htmlUrl || `https://github.com/${owner}/${repo}`}
+                  commitSha={commitSha}
                   className="w-full"
                   autoScroll={syncStatus === "processing"}
                   scrollSpeed={10}
                 />
                 <span className="text-sm font-mono text-zinc-500">
-                  {syncStatus === "processing" ? "syncing..." : "✔︎ synced"}
+                  {syncStatus === "processing" ? (
+                    <>
+                      syncing...
+                      {repoInfo.tree.reduce((sum, entry) => sum + (entry.size || 0), 0) > 500 * 1024 * 1024 && (
+                        <span className="text-zinc-400"> (large repo, this might take a while)</span>
+                      )}
+                    </>
+                  ) : "✔︎ synced"}
                 </span>
               </>
             ) : null}

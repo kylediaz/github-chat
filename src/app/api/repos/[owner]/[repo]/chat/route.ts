@@ -6,12 +6,20 @@ import {
   stepCountIs,
 } from "ai";
 import type { UIMessage } from "ai";
-import { db, githubRepoState, chromaSyncInvocations } from "@/db";
+import {
+  db,
+  githubRepoState,
+  githubRepoDetails,
+  githubRepoCommit,
+  githubRepoTrees,
+  chromaSyncInvocations,
+} from "@/db";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { validateEnv } from "@/lib/env";
 import { queryCollection } from "@/services/chroma/client";
 import type { ErrorResponse } from "@/types/api";
+import type { GitHubTree } from "@/types/github";
 
 validateEnv();
 
@@ -26,30 +34,43 @@ export async function POST(
   try {
     const { messages }: { messages: UIMessage[] } = await req.json();
 
-    const commitWithInvocation = await db
+    const repoData = await db
       .select({
         state: githubRepoState,
+        details: githubRepoDetails,
+        commit: githubRepoCommit,
+        tree: githubRepoTrees,
         invocation: chromaSyncInvocations,
       })
       .from(githubRepoState)
       .innerJoin(
+        githubRepoDetails,
+        eq(githubRepoDetails.name, githubRepoState.repoName),
+      )
+      .innerJoin(
         chromaSyncInvocations,
+        eq(chromaSyncInvocations.refIdentifier, githubRepoState.latestProcessedCommitSha),
+      )
+      .innerJoin(
+        githubRepoCommit,
+        eq(githubRepoCommit.sha, githubRepoState.latestProcessedCommitSha),
+      )
+      .leftJoin(
+        githubRepoTrees,
         and(
-          eq(chromaSyncInvocations.refIdentifier, githubRepoState.latestProcessedCommitSha),
+          eq(githubRepoTrees.repoName, githubRepoState.repoName),
+          eq(githubRepoTrees.treeSha, githubRepoCommit.treeSha),
         ),
       )
-      .where(
-        eq(githubRepoState.repoName, `${owner}/${repo}`),
-      )
+      .where(eq(githubRepoState.repoName, `${owner}/${repo}`))
       .limit(1);
 
-    if (commitWithInvocation.length === 0) {
+    if (repoData.length === 0) {
       const errorResponse: ErrorResponse = { error: "Not synced" };
       return new Response(JSON.stringify(errorResponse), { status: 400 });
     }
 
-    const state = commitWithInvocation[0].state;
-    const invocation = commitWithInvocation[0].invocation;
+    const { state, details, tree: treeRow, invocation } = repoData[0];
 
     if (state.latestCommitSha && !state.latestProcessedCommitSha) {
       const errorResponse: ErrorResponse = { error: "Repository has not completed its first sync" };
@@ -63,6 +84,12 @@ export async function POST(
 
     const collectionName = invocation.targetCollectionName;
     const commitSha = invocation.refIdentifier;
+
+    const rawTree = (treeRow?.tree as GitHubTree["tree"]) ?? [];
+    const directories = rawTree
+      .filter((entry) => entry.type === "tree")
+      .map((entry) => entry.path)
+      .sort();
 
     const tools = {
       searchFiles: createTool({
@@ -115,8 +142,9 @@ export async function POST(
     const result = streamText({
       model: openai("gpt-4.1"),
       system: `You are a helpful AI assistant that helps users understand the ${owner}/${repo} GitHub repository.
-
-The code is indexed at commit ${commitSha}.
+${details.description ? `\nDescription: ${details.description}` : ""}
+${details.language ? `Primary language: ${details.language}` : ""}
+${directories.length > 0 ? `\nDirectory structure:\n${directories.map((d) => `  ${d}/`).join("\n")}` : ""}
 
 You have access to tools to search through the repository code and files. Use these tools to provide accurate, context-aware answers about the codebase.
 
