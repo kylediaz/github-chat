@@ -4,107 +4,88 @@ import type { StatusResponse, ErrorResponse } from "@/types/api";
 
 import {
   db,
+  githubRepo,
+  githubRepoDetails,
+  githubRepoState,
   githubRepoCommit,
   githubRepoTrees,
-  githubSyncSources,
-  githubSyncInvocations,
-  githubRepo,
+  chromaSyncSources,
+  chromaSyncInvocations,
 } from "@/db";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { getInvocationStatus } from "@/services/chroma/client";
+import { eq, and, sql } from "drizzle-orm";
 import { validateEnv } from "@/lib/env";
-import { getRepository } from "@/services/github/client";
+import type { TreeNode } from "@/types/github";
+import { transformTreeToHierarchy } from "@/lib/utils";
+import {
+  refreshRepo,
+  refreshCommit,
+  refreshTree,
+} from "@/services/github/cache";
+import {
+  refreshSource,
+  refreshInvocation,
+  refreshInvocationStatus,
+} from "@/services/chroma/cache";
 
 const tracer = trace.getTracer("api");
 
 validateEnv();
 
+const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const STATUS_UPDATE_THRESHOLD_MS = 2000;
 
-function isTerminalStatus(status: string): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled";
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function isTerminalStatus(status: string | null): boolean {
+  return (
+    status === "completed" || status === "failed" || status === "cancelled"
+  );
 }
 
-async function updateInvocationStatusIfNeeded(
-  invocation: typeof githubSyncInvocations.$inferSelect,
-): Promise<typeof githubSyncInvocations.$inferSelect> {
-  const fetchedAt = invocation.fetchedAt;
-  if (!fetchedAt) {
-    return invocation;
-  }
-
-  const statusAge = Date.now() - fetchedAt.getTime();
-  if (statusAge <= STATUS_UPDATE_THRESHOLD_MS || isTerminalStatus(invocation.status)) {
-    return invocation;
-  }
-
-  let lockAcquired = false;
-
-  await db.transaction(async (tx) => {
-    const locked = await tx.execute(sql`
-    SELECT invocation_uuid
-    FROM github_sync_invocations
-    WHERE invocation_uuid = ${invocation.uuid}
-    FOR UPDATE SKIP LOCKED
-  `);
-
-    if (locked.length === 0) {
-      return;
-    }
-
-    lockAcquired = true;
-
-    try {
-      const source = await tx.query.githubSyncSources.findFirst({
-        where: eq(githubSyncSources.uuid, invocation.sourceUuid),
-      });
-
-      if (!source) {
-        return;
-      }
-
-      const invocationId = (invocation as any).invocationId;
-      if (!invocationId) {
-        return;
-      }
-
-      const statusData = await getInvocationStatus(invocationId);
-      await tx
-        .update(githubSyncInvocations)
-        .set({
-          status: statusData.status,
-          fetchedAt: new Date(),
-        })
-        .where(eq(githubSyncInvocations.uuid, invocation.uuid));
-    } catch (error) {
-      console.error("Failed to fetch invocation status:", error);
-    }
-  });
-
-  if (!lockAcquired) {
-    return invocation;
-  }
-
-  return await db.query.githubSyncInvocations.findFirst({
-    where: eq(githubSyncInvocations.uuid, invocation.uuid),
-  }) ?? invocation;
+function isStale(fetchedAt: Date, maxAge: number): boolean {
+  return Date.now() - fetchedAt.getTime() > maxAge;
 }
 
-/**
-* Get the status of a repository and its sync status.
-* 
-*/
-export async function getFastCachedRepoStatus(owner: string, repo: string) {
-  const repoName = `${owner}/${repo}`;
+function getRepoName(owner: string, repo: string): string {
+  return `${owner}/${repo}`;
+}
 
-  const commitsWithDataPromise = db
+interface CurrentState {
+  repo: typeof githubRepo.$inferSelect | null;
+  repoDetails: typeof githubRepoDetails.$inferSelect | null;
+  state: typeof githubRepoState.$inferSelect | null;
+  latestCommit: typeof githubRepoCommit.$inferSelect | null;
+  tree: typeof githubRepoTrees.$inferSelect | null;
+  source: typeof chromaSyncSources.$inferSelect | null;
+  invocation: typeof chromaSyncInvocations.$inferSelect | null;
+}
+
+async function getCurrentState(
+  owner: string,
+  repo: string,
+): Promise<CurrentState> {
+  const repoName = getRepoName(owner, repo);
+
+  const result = await db
     .select({
+      repo: githubRepo,
+      repoDetails: githubRepoDetails,
+      state: githubRepoState,
       commit: githubRepoCommit,
       tree: githubRepoTrees,
-      invocation: githubSyncInvocations,
+      source: chromaSyncSources,
+      invocation: chromaSyncInvocations,
     })
-    .from(githubRepoCommit)
+    .from(githubRepo)
+    .leftJoin(githubRepoDetails, eq(githubRepoDetails.name, githubRepo.name))
+    .leftJoin(githubRepoState, eq(githubRepoState.repoName, githubRepo.name))
+    .leftJoin(
+      githubRepoCommit,
+      eq(githubRepoCommit.sha, githubRepoState.latestCommitSha),
+    )
     .leftJoin(
       githubRepoTrees,
       and(
@@ -113,35 +94,91 @@ export async function getFastCachedRepoStatus(owner: string, repo: string) {
       ),
     )
     .leftJoin(
-      githubSyncInvocations,
-      sql`${githubSyncInvocations.uuid} = (
-              SELECT i2.invocation_uuid
-              FROM github_sync_invocations i2
-              INNER JOIN github_sync_sources s2 ON s2.uuid = i2.source_uuid
-              WHERE i2.commit_sha = ${githubRepoCommit.sha}
-                  AND s2.repo_name = ${githubRepoCommit.repoName}
-              ORDER BY COALESCE(i2.fetched_at, i2.created_at) DESC
-              LIMIT 1
-          )`,
+      chromaSyncSources,
+      eq(chromaSyncSources.repoName, githubRepo.name),
     )
-    .where(eq(githubRepoCommit.repoName, repoName))
-    .orderBy(desc(githubRepoCommit.fetchedAt))
-    .limit(2);
+    .leftJoin(
+      chromaSyncInvocations,
+      sql`${chromaSyncInvocations.uuid} = (
+        SELECT i2.invocation_uuid
+        FROM chroma_sync_invocations i2
+        WHERE i2.source_uuid = ${chromaSyncSources.uuid}
+          AND i2.ref_identifier = ${githubRepoCommit.sha}
+        ORDER BY i2.created_at DESC
+        LIMIT 1
+      )`,
+    )
+    .where(eq(githubRepo.name, repoName))
+    .limit(1);
 
-  const [repoData, commitsWithData] = await Promise.all(
-    [
-      db.query.githubRepo.findFirst({
-        where: eq(githubRepo.name, repoName),
-      }),
-      commitsWithDataPromise,
-    ],
-  );
+  const row = result[0];
 
   return {
-    repo: repoData,
-    latestCommits: commitsWithData,
-  }
+    repo: row?.repo || null,
+    repoDetails: row?.repoDetails || null,
+    state: row?.state || null,
+    latestCommit: row?.commit || null,
+    tree: row?.tree || null,
+    source: row?.source || null,
+    invocation: row?.invocation || null,
+  };
 }
+
+// ============================================================================
+// Response Formatting
+// ============================================================================
+
+function formatResponse(state: CurrentState): StatusResponse {
+  const repoDetails = state.repoDetails;
+  const isAvailable = state.repo?.available === true;
+
+  let syncStatus: StatusResponse["sync_status"] = null;
+  if (state.invocation) {
+    if (state.invocation.status === "completed") {
+      syncStatus = "up_to_date";
+    } else if (state.invocation.status === "failed") {
+      syncStatus = "failed";
+    } else if (
+      state.invocation.status === "processing" ||
+      state.invocation.status === "pending"
+    ) {
+      syncStatus = "processing";
+    } else {
+      syncStatus = "out_of_date";
+    }
+  } else if (state.latestCommit && state.source) {
+    syncStatus = "out_of_date";
+  }
+
+  let tree: TreeNode | null = null;
+  if (state.tree?.tree) {
+    tree = transformTreeToHierarchy(state.tree.tree as any);
+  }
+
+  return {
+    exists: isAvailable,
+    sync_status: syncStatus,
+    is_private: repoDetails?.private ?? false,
+    repo_info: repoDetails
+      ? {
+          fullName: state.repo?.name ?? "",
+          description: repoDetails.description,
+          htmlUrl: repoDetails.htmlUrl,
+          language: repoDetails.language,
+          stargazersCount: repoDetails.stargazersCount,
+          forksCount: repoDetails.forksCount,
+          watchersCount: repoDetails.watchersCount,
+          openIssuesCount: repoDetails.openIssuesCount,
+        }
+      : null,
+    commit_sha: state.latestCommit?.sha ?? null,
+    tree,
+  };
+}
+
+// ============================================================================
+// Main Handler
+// ============================================================================
 
 export async function GET(
   request: NextRequest,
@@ -151,73 +188,74 @@ export async function GET(
   const span = tracer.startSpan("api.repos.status");
 
   try {
-    // We assume the repo is already fully synced
-    let { repo, latestCommits } = await getFastCachedRepoStatus(owner, repoName);
-    let latestInvocation: typeof githubSyncInvocations.$inferSelect | null = latestCommits[0].invocation;
-    const latestInvocationFetched = Date.now() - (latestInvocation?.fetchedAt?.getTime() ?? 0);
+    // Optimistically assume the repository exists and is fully indexed
+    let state = await getCurrentState(owner, repoName);
 
-    if (!repo || repo.fetchedAt < new Date(Date.now() - ONE_DAY_MS * 30)) {
-      // If the repo is new or stale, we try to get the repo info from the github API
-      // We use fetchedAt as a row-level lock to avoid multiple fetches
-      // Other concurrent requests will wait for the lock to be released
-      // and all requests will return the same value
-      const fetchedRepo = await db.transaction(async (tx) => {
-        const locked = await tx.execute(sql`
-          SELECT name
-          FROM github_repo
-          WHERE owner = ${owner} AND repo = ${repoName}
-          FOR UPDATE SKIP LOCKED
-        `);
+    if (
+      !state.repo ||
+      state.repo.available === null ||
+      isStale(state.repo.fetchedAt, ONE_MONTH_MS)
+    ) {
+      await refreshRepo(owner, repoName);
+      state = await getCurrentState(owner, repoName);
+    }
 
-        if (locked.length === 0) {
-          return;
-        }
+    if (!state.repo || state.repo.available === null) {
+      return NextResponse.json(
+        { error: `Did not update repository state` },
+        { status: 500 },
+      );
+    }
 
-        const ghRepo = await getRepository(owner, repoName);
-        if ("notFound" in ghRepo && ghRepo.notFound) {
-          await tx.update(githubRepo).set({
-            exists: false,
-            fetchedAt: new Date(),
-          }).where(eq(githubRepo.name, repoName));
-          return;
-        }
+    if (state.repo.available === false) {
+      return NextResponse.json(
+        {
+          error: `Repository ${owner}/${repoName} not found (last checked ${state.repo?.fetchedAt?.toISOString() ?? "never"})`,
+        },
+        { status: 404 },
+      );
+    }
 
-        await tx.update(githubRepo).set({
-          exists: true,
-          fetchedAt: new Date(),
-        }).where(eq(githubRepo.name, repoName));
-        
-        const repoData = await tx.query.githubRepo.findFirst({
-          where: eq(githubRepo.name, repoName),
-        });
+    const needsRefresh = {
+      commit: !state.state || isStale(state.state.fetchedAt, ONE_DAY_MS),
+      tree: state.latestCommit && (!state.tree || state.tree.tree === null),
+      source: !state.source || (state.source && !state.source.uuid),
+      invocation: state.latestCommit && state.source && !state.invocation,
+      invocationStatus:
+        state.invocation &&
+        !isTerminalStatus(state.invocation.status) &&
+        state.invocation.fetchedAt &&
+        isStale(state.invocation.fetchedAt, STATUS_UPDATE_THRESHOLD_MS),
+    };
 
-        if (!repoData) {
-          return;
-        }
-
-        return repoData;
-      });
-      if (fetchedRepo) {
-        repo = fetchedRepo;
+    if (
+      needsRefresh.commit &&
+      state.repo?.available === true &&
+      state.repoDetails?.defaultBranch
+    ) {
+      refreshCommit(owner, repoName, state.repoDetails.defaultBranch);
+    }
+    if (needsRefresh.tree && state.latestCommit) {
+      refreshTree(owner, repoName, state.latestCommit.treeSha);
+    }
+    if (needsRefresh.source && state.repo?.available === true) {
+      refreshSource(owner, repoName);
+    }
+    if (needsRefresh.invocation && state.latestCommit && state.source) {
+      refreshInvocation(owner, repoName, state.latestCommit.sha);
+    }
+    if (needsRefresh.invocationStatus && state.invocation) {
+      const updated = await refreshInvocationStatus(state.invocation);
+      if (updated?.status && isTerminalStatus(updated?.status)) {
+        await db.update(githubRepoState).set({
+          latestProcessedCommitSha: updated?.refIdentifier,
+        }).where(eq(githubRepoState.repoName, `${owner}/${repoName}`));
       }
     }
-    if (!repo?.exists) {
-      return NextResponse.json({ error: `Repository ${repoName} not found (last checked ${repo?.fetchedAt?.toISOString() ?? "never"})` }, { status: 404 });
-    }
-    
-    if (latestInvocation && !isTerminalStatus(latestInvocation.status) && latestInvocationFetched > STATUS_UPDATE_THRESHOLD_MS) {
-      // The invocation is still running. We should refetch the status from the chroma sync API
-      // we use fetchedAt as a row-level lock to avoid multiple fetches
-      // Other concurrent requests will not wait for the lock to be released, instead they
-      // will return the out of date value currently stored in the DB.
-      const updatedInvocation = await updateInvocationStatusIfNeeded(latestInvocation);
-      if (!updatedInvocation) {
-        return NextResponse.json({ error: "Failed to update invocation status" }, { status: 500 });
-      }
-      latestInvocation = updatedInvocation;
-    }
 
+    return NextResponse.json(formatResponse(state));
   } catch (error) {
+    console.error("Failed to check repository status:", error);
     span.recordException(error as Error);
     const errorResponse: ErrorResponse = {
       error: "Failed to check repository status",

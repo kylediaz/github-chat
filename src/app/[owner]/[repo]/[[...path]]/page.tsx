@@ -39,7 +39,6 @@ export default function ChatPage() {
       api: `/api/repos/${owner}/${repo}/chat`,
     }),
   });
-  console.log(messages, status, chatError);
 
   const [input, setInput] = useState<string>("");
   const [messagesContainerRef, messagesEndRef] =

@@ -1,7 +1,7 @@
 export interface GitHubRepo {
-  owner: string;
-  repo: string;
-  fullName: string;
+  type: "repo";
+
+  name: string;
   description: string | null;
   defaultBranch: string;
   htmlUrl: string;
@@ -17,6 +17,8 @@ export interface GitHubRepo {
 }
 
 export interface GitHubCommit {
+  type: "commit";
+
   sha: string;
   treeSha: string;
   message: string;
@@ -26,6 +28,8 @@ export interface GitHubCommit {
 }
 
 export interface GitHubTree {
+  type: "tree";
+
   sha: string;
   url?: string;
   tree: Array<{
@@ -40,6 +44,8 @@ export interface GitHubTree {
 }
 
 export interface GitHubError {
+  type: "error";
+
   private?: boolean;
   accessible?: boolean;
   notFound?: boolean;
@@ -91,4 +97,3 @@ export interface ReadFileResult {
   content: string;
   total_lines: number;
 }
-

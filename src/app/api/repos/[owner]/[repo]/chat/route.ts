@@ -6,8 +6,8 @@ import {
   stepCountIs,
 } from "ai";
 import type { UIMessage } from "ai";
-import { db, githubRepoCommit, githubSyncInvocations } from "@/db";
-import { eq, and, desc } from "drizzle-orm";
+import { db, githubRepoState, chromaSyncInvocations } from "@/db";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { validateEnv } from "@/lib/env";
 import { queryCollection } from "@/services/chroma/client";
@@ -28,32 +28,41 @@ export async function POST(
 
     const commitWithInvocation = await db
       .select({
-        commit: githubRepoCommit,
-        invocation: githubSyncInvocations,
+        state: githubRepoState,
+        invocation: chromaSyncInvocations,
       })
-      .from(githubRepoCommit)
+      .from(githubRepoState)
       .innerJoin(
-        githubSyncInvocations,
+        chromaSyncInvocations,
         and(
-          eq(githubSyncInvocations.commitSha, githubRepoCommit.sha),
-          eq(githubSyncInvocations.status, "completed"),
+          eq(chromaSyncInvocations.refIdentifier, githubRepoState.latestProcessedCommitSha),
         ),
       )
       .where(
-        and(eq(githubRepoCommit.owner, owner), eq(githubRepoCommit.repo, repo)),
+        eq(githubRepoState.repoName, `${owner}/${repo}`),
       )
-      .orderBy(desc(githubRepoCommit.fetchedAt))
       .limit(1);
 
     if (commitWithInvocation.length === 0) {
-      const errorResponse: ErrorResponse = { error: "No completed sync found" };
+      const errorResponse: ErrorResponse = { error: "Not synced" };
       return new Response(JSON.stringify(errorResponse), { status: 400 });
     }
 
-    const latestInvocation = commitWithInvocation[0].invocation;
+    const state = commitWithInvocation[0].state;
+    const invocation = commitWithInvocation[0].invocation;
 
-    const collectionName = latestInvocation.targetCollectionName;
-    const commitSha = latestInvocation.commitSha;
+    if (state.latestCommitSha && !state.latestProcessedCommitSha) {
+      const errorResponse: ErrorResponse = { error: "Repository has not completed its first sync" };
+      return new Response(JSON.stringify(errorResponse), { status: 400 });
+    }
+
+    if (invocation.status !== "completed") {
+      const errorResponse: ErrorResponse = { error: "latestProcessedCommitSha is not complete" }
+      return new Response(JSON.stringify(errorResponse), { status: 500 });
+    }
+
+    const collectionName = invocation.targetCollectionName;
+    const commitSha = invocation.refIdentifier;
 
     const tools = {
       searchFiles: createTool({

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, FormEvent } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useState, type FormEvent } from "react";
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState<string>("");

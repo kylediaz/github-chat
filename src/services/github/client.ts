@@ -1,13 +1,14 @@
-import { Octokit } from "octokit";
+// Client for directly accessing the Github API
+
 import { env } from "@/lib/env";
-import { trace } from "@opentelemetry/api";
 import type {
-  GitHubRepo,
   GitHubCommit,
-  GitHubTree,
   GitHubError,
-  TreeNode,
+  GitHubRepo,
+  GitHubTree,
 } from "@/types/github";
+import { trace } from "@opentelemetry/api";
+import { Octokit } from "octokit";
 
 const tracer = trace.getTracer("github");
 
@@ -15,95 +16,11 @@ const octokit = new Octokit({
   auth: env.GITHUB_TOKEN,
 });
 
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0B";
-
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)}${sizes[i]}`;
-}
-
-export function transformTreeToHierarchy(
-  tree: GitHubTree["tree"],
-  rootName: string = "root_directory",
-): TreeNode | null {
-  if (!tree || tree.length === 0) {
-    return null;
-  }
-
-  const root: TreeNode = {
-    name: rootName,
-    type: "directory",
-    children: [],
-  };
-
-  const pathMap = new Map<string, TreeNode>();
-  pathMap.set("", root);
-
-  for (const entry of tree) {
-    const pathParts = entry.path.split("/");
-    let currentPath = "";
-
-    for (let i = 0; i < pathParts.length; i++) {
-      const part = pathParts[i];
-      const isLast = i === pathParts.length - 1;
-      const parentPath = currentPath;
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-
-      if (!pathMap.has(currentPath)) {
-        const isDirectory = !isLast || entry.type === "tree";
-        const node: TreeNode = {
-          name: part,
-          type: isDirectory ? "directory" : "file",
-        };
-
-        if (!isDirectory && entry.size !== undefined) {
-          node.size = formatFileSize(entry.size);
-        }
-
-        if (isDirectory) {
-          node.children = [];
-        }
-
-        pathMap.set(currentPath, node);
-
-        const parent = pathMap.get(parentPath);
-        if (parent && parent.children) {
-          parent.children.push(node);
-        }
-      }
-    }
-  }
-
-  const sortChildren = (node: TreeNode) => {
-    if (node.children) {
-      node.children.sort((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === "directory" ? -1 : 1;
-        }
-        return a.name.localeCompare(b.name);
-      });
-
-      node.children.forEach(sortChildren);
-    }
-  };
-
-  sortChildren(root);
-
-  return root;
-}
-
 export async function getRepository(
   owner: string,
   repo: string,
 ): Promise<GitHubRepo | GitHubError> {
   const span = tracer.startSpan("github.getRepository");
-  span.setAttributes({
-    "github.owner": owner,
-    "github.repo": repo,
-  });
 
   try {
     const response = await octokit.request("GET /repos/{owner}/{repo}", {
@@ -116,9 +33,9 @@ export async function getRepository(
 
     const data = response.data;
 
-    span.setAttribute("repository.stars", data.stargazers_count);
-
     return {
+      type: "repo",
+
       owner,
       repo,
       fullName: data.full_name,
@@ -159,11 +76,6 @@ export async function getBranchCommit(
   branch: string,
 ): Promise<GitHubCommit | null> {
   const span = tracer.startSpan("github.getBranchCommit");
-  span.setAttributes({
-    "github.owner": owner,
-    "github.repo": repo,
-    "github.branch": branch,
-  });
 
   try {
     const response = await octokit.request(
@@ -181,10 +93,8 @@ export async function getBranchCommit(
     const commitData = response.data.commit;
     const treeSha = commitData.commit.tree.sha;
 
-    span.setAttribute("commit.sha", commitData.sha.substring(0, 7));
-    span.setAttribute("tree.sha", treeSha.substring(0, 7));
-
     return {
+      type: "commit",
       sha: commitData.sha,
       treeSha,
       message: commitData.commit.message,
@@ -212,11 +122,6 @@ export async function getRepositoryTree(
   recursive: boolean = true,
 ): Promise<GitHubTree | null> {
   const span = tracer.startSpan("github.getRepositoryTree");
-  span.setAttributes({
-    "github.owner": owner,
-    "github.repo": repo,
-    "tree.sha": treeSha.substring(0, 7),
-  });
 
   try {
     const response = await octokit.request(
@@ -236,12 +141,7 @@ export async function getRepositoryTree(
 
     span.setAttribute("tree.entries_count", data.tree?.length || 0);
 
-    return {
-      sha: data.sha,
-      url: data.url,
-      tree: data.tree || [],
-      truncated: data.truncated || false,
-    };
+    return { type: "tree", ...data };
   } catch (error: any) {
     if (error.status === 404) {
       span.setAttribute("error.type", "tree_not_found");
@@ -259,4 +159,3 @@ export async function getRepositoryTree(
     span.end();
   }
 }
-

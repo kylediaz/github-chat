@@ -1,33 +1,31 @@
 import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgEnum,
   pgTable,
-  uuid,
+  primaryKey,
+  serial,
   text,
   timestamp,
-  integer,
-  boolean,
-  jsonb,
   uniqueIndex,
-  index,
-  pgEnum,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const githubRepo = pgTable(
   "github_repo",
   {
+    // name = owner/repo
     name: text("name").notNull().primaryKey(),
-    owner: text("owner").notNull(),
-    repo: text("repo").notNull(),
 
     fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
 
     // null = not fetched yet
     // true = available
     // false = not available -- does not exist, inaccessible, etc.
-    available: boolean("available"), 
-  },
-  (t) => ({
-    ownerRepoIdx: uniqueIndex("github_repo_owner_repo_idx").on(t.owner, t.repo),
-  })
+    available: boolean("available"),
+  }
 );
 
 // Exists only if the repo is available
@@ -52,7 +50,7 @@ export const githubRepoDetails = pgTable(
     private: boolean("private").notNull(),
     licenseName: text("license_name"),
     createdAt: timestamp("created_at").notNull(),
-  }
+  },
 );
 
 export const githubRepoState = pgTable(
@@ -61,33 +59,33 @@ export const githubRepoState = pgTable(
     repoName: text("repo_name")
       .notNull()
       .primaryKey()
-      .references(() => githubRepo.name),
+      .references(() => githubRepo.name, { onDelete: "cascade" }),
 
     // Current commit SHA of HEAD from GET /repos/{owner}/{repo}/branches/{branch}
-    latestCommitSha: text("latest_commit_sha").references(() => githubRepoCommit.sha),
+    latestCommitSha: text("latest_commit_sha").references(
+      () => githubRepoCommit.sha,
+    ),
 
     // Latest commit that has a completed invocation
-    latestProcessedCommitSha: text("latest_processed_commit_sha").references(() => githubRepoCommit.sha),
+    latestProcessedCommitSha: text("latest_processed_commit_sha").references(
+      () => githubRepoCommit.sha,
+    ),
 
-    // Row-level lock for fetching GET /repos/{owner}/{repo}/branches/{branch}
     fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
   },
-  (table) => ({
-    repoNameIdx: uniqueIndex("github_repo_state_repo_name_idx").on(
-      table.repoName,
-    ),
-  }),
 );
 
+// Unlike the other tables, this table does not need to be able to
+// have a placeholder because we never fetch a commit by its SHA
+// and have to protect against race conditions.
 export const githubRepoCommit = pgTable(
   "github_repo_commit",
   {
-
-    sha: text("sha").notNull().primaryKey(),
+    sha: text("sha").primaryKey(),
     repoName: text("repo_name")
       .notNull()
-      .references(() => githubRepo.name),
-    
+      .references(() => githubRepo.name, { onDelete: "cascade" }),
+
     // From the github API
     treeSha: text("tree_sha").notNull(),
     message: text("message").notNull(),
@@ -95,14 +93,9 @@ export const githubRepoCommit = pgTable(
     authorDate: timestamp("author_date"),
     htmlUrl: text("html_url").notNull(),
 
-    // Row-level lock for fetching from the github API
     fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
   },
   (table) => ({
-    repoNameShaIdx: uniqueIndex("github_repo_commit_repo_name_sha_idx").on(
-      table.repoName,
-      table.sha,
-    ),
     repoNameIdx: index("github_repo_commit_repo_name_idx").on(table.repoName),
   }),
 );
@@ -110,38 +103,32 @@ export const githubRepoCommit = pgTable(
 export const githubRepoTrees = pgTable(
   "github_repo_trees",
   {
-    repoName: text("repo_name").notNull().references(() => githubRepo.name),
-    treeSha: text("tree_sha").notNull(),
+    treeSha: text("tree_sha").primaryKey(),
+    repoName: text("repo_name")
+      .notNull()
+      .references(() => githubRepo.name, { onDelete: "cascade" }),
+    
     tree: jsonb("tree"), // null = not fetched yet
 
-    // Row-level lock for fetching from the github API
     fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
   },
   (table) => ({
-    repoNameTreeShaIdx: uniqueIndex(
-      "github_repo_trees_repo_name_tree_sha_idx",
-    ).on(table.repoName, table.treeSha),
     repoNameIdx: index("github_repo_trees_repo_name_idx").on(table.repoName),
   }),
 );
 
-// Locks the creation of sync sources and invocations. Use chroma_sync_invocations.fetchedAt for locking status updates.
-export const chromaSyncLock = pgTable(
-  "chroma_sync_lock",
-  {
-    repoName: text("repo_name").notNull().references(() => githubRepo.name),
-    lockAcquiredAt: timestamp("lock_acquired_at").defaultNow(), // null = not acquired
-  },
-  (table) => ({
-    repoNameIdx: uniqueIndex("chroma_sync_lock_repo_name_idx").on(table.repoName),
-  }),
-);
-
+// One repo can have multiple chroma sync sources.
 export const chromaSyncSources = pgTable(
   "chroma_sync_sources",
   {
-    uuid: uuid("source_uuid").notNull().primaryKey(),
-    repoName: text("repo_name").notNull().references(() => githubRepo.name),
+    id: serial("id").primaryKey(),
+    repoName: text("repo_name")
+      .notNull()
+      .references(() => githubRepo.name, { onDelete: "cascade" }),
+
+    // Nullable because we want to use a placeholder row
+    uuid: uuid("source_uuid").unique(),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
@@ -151,32 +138,36 @@ export const chromaSyncSources = pgTable(
   }),
 );
 
-export const chromaSyncInvocationStatus = pgEnum("chroma_sync_invocation_status", ["pending", "processing", "cancelled", "completed", "failed"]);
+export const chromaSyncInvocationStatus = pgEnum(
+  "chroma_sync_invocation_status",
+  ["pending", "processing", "cancelled", "completed", "failed"],
+);
 
+// One source can have multiple invocations.
+// One commit SHA can have multiple invocations.
 export const chromaSyncInvocations = pgTable(
   "chroma_sync_invocations",
   {
+    id: serial("id").primaryKey(),
     sourceUuid: uuid("source_uuid")
       .notNull()
-      .references(() => chromaSyncSources.uuid),
-    
-    uuid: uuid("invocation_uuid").notNull().primaryKey(),
+      .references(() => chromaSyncSources.uuid, { onDelete: "cascade" }),
     refIdentifier: text("ref_identifier").notNull(), // SHA of the commit
     targetCollectionName: text("target_collection_name").notNull(),
-    status: chromaSyncInvocationStatus("status").default("pending").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
 
-    // Row-level lock for fetching status from the chroma sync API
+    // Nullable because we want to use a placeholder row
+    uuid: uuid("invocation_uuid").unique(),
+    status: chromaSyncInvocationStatus("status").default("pending"),
+
+    createdAt: timestamp("created_at").defaultNow().notNull(),
     fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
   },
   (table) => ({
     sourceUuidIdx: index("chroma_sync_invocations_source_uuid_idx").on(
       table.sourceUuid,
     ),
-    refIdentifierIdx: index("chroma_sync_invocations_ref_identifier_idx").on(table.refIdentifier),
-    statusIdx: index("chroma_sync_invocations_status_idx").on(table.status),
-    createdAtIdx: index("chroma_sync_invocations_created_at_idx").on(
-      table.createdAt,
+    refIdentifierIdx: index("chroma_sync_invocations_ref_identifier_idx").on(
+      table.refIdentifier,
     ),
   }),
 );
