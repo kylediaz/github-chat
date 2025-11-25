@@ -213,7 +213,7 @@ export async function GET(
     }
 
     const needsRefresh = {
-      commit: !state.state || isStale(state.state.fetchedAt, ONE_DAY_MS),
+      commit: !state.state || !state.state.latestCommitSha || isStale(state.state.fetchedAt, ONE_DAY_MS),
       tree: state.latestCommit && (!state.tree || state.tree.tree === null),
       source: !state.source || (state.source && !state.source.uuid),
       invocation: state.latestCommit && state.source && !state.invocation,

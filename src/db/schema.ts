@@ -144,7 +144,6 @@ export const chromaSyncInvocationStatus = pgEnum(
 );
 
 // One source can have multiple invocations.
-// One commit SHA can have multiple invocations.
 export const chromaSyncInvocations = pgTable(
   "chroma_sync_invocations",
   {
@@ -167,6 +166,10 @@ export const chromaSyncInvocations = pgTable(
       table.sourceUuid,
     ),
     refIdentifierIdx: index("chroma_sync_invocations_ref_identifier_idx").on(
+      table.refIdentifier,
+    ),
+    sourceRefUnique: uniqueIndex("chroma_sync_invocations_source_ref_unique").on(
+      table.sourceUuid,
       table.refIdentifier,
     ),
   }),
