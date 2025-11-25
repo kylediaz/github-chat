@@ -68,7 +68,12 @@ export function RepoTree({
   );
 
   useEffect(() => {
-    if (!autoScroll || userInteractedRef.current || totalLines === 0) {
+    if (
+      !autoScroll ||
+      userInteractedRef.current ||
+      totalLines === 0 ||
+      totalLines < 2 * previewLineCount
+    ) {
       if (autoScrollIntervalRef.current) {
         clearInterval(autoScrollIntervalRef.current);
         autoScrollIntervalRef.current = null;

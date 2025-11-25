@@ -37,7 +37,7 @@ export function ChatInput({
 
   return (
     <form
-      className="px-4 pb-4 mx-auto w-full max-w-xl bg-white sm:px-0"
+      className="px-4 pb-4 mx-auto w-full max-w-xl sm:px-0"
       onSubmit={handleSubmit}
     >
       <div className="relative w-full">

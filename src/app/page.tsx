@@ -6,6 +6,24 @@ import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+const SUGGESTIONS = [
+  {
+    repo: "numpy/numpy",
+    queryPreview: "How does NumPy decide when a ufunc loop uses SIMD?",
+    fullQuery: "How does NumPy decide when a ufunc loop uses SIMD, BLAS, or plain C?"
+  },
+  {
+    repo: "cased/kit",
+    queryPreview: "How does the Kit code agent dependency analyzer work?",
+    fullQuery: "How does the dependency analyzer in src/kit/dependency_analyzer work?"
+  },
+  {
+    repo: "pandas-dev/pandas",
+    queryPreview: "When does pandas use \"copy-on-write\"?",
+    fullQuery: "When does pandas operate \"copy-on-write\" vs. view semantics? What code paths trigger real copies during slicing, boolean indexing, and assignment?"
+  }
+]
+
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -51,9 +69,7 @@ export default function Home() {
       >
         <div className="text-left mb-4">
           <h1 className="font-display text-2xl md:text-3xl font-medium tracking-tight mb-2 text-neutral-900 select-none">
-            <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }}>Chat </motion.span>
-            <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}>with </motion.span>
-            <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}>Code</motion.span>
+            Chat with Code
           </h1>
           <p className="text-zinc-600 select-none">
             Chunk and embed any Github repository.<br />
@@ -93,6 +109,13 @@ export default function Home() {
             </motion.p>
           )}
         </form>
+        <div className="flex flex-col gap-1 ml-2 mt-4">
+          {SUGGESTIONS.map((suggestion, index) => (
+            <motion.a key={suggestion.repo} href={`/${suggestion.repo}?q=${encodeURIComponent(suggestion.fullQuery)}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: index * 0.05, ease: "easeOut" }} className="text-zinc-500 hover:underline text-xs">
+              {suggestion.queryPreview} <ArrowRight className="w-3 h-3 inline-block" />
+            </motion.a>
+          ))}
+          </div>
       </div>
 
       <div className="absolute bottom-8 text-center text-sm text-neutral-500 z-10">

@@ -24,10 +24,10 @@ function parseToolOutput(output: any): { searchResults: any | null } {
 
 function formatParameterValue(value: any): string {
   if (Array.isArray(value)) {
-    return `"${JSON.stringify(value)}"`;
+    return JSON.stringify(value);
   }
 
-  return `"${String(value)}"`;
+  return String(value);
 }
 
 export function Message({ message }: MessageProps): ReactNode {
@@ -155,13 +155,13 @@ function ToolInvocation({
     <div key={toolCallId} className="mb-2">
       {input && (
         <div
-          className="font-mono text-sm flex flex-row cursor-pointer hover:underline"
+          className="font-mono text-sm flex flex-row items-center cursor-pointer hover:underline max-w-full"
           onClick={handleToolCallClick}
         >
-          <div className="font-medium">{toolName}</div>
-          {"("}
+          <div className="font-medium shrink-0">{toolName}</div>
+          <div className="shrink-0">{"("}</div>
           <ToolCallParameters input={input} />
-          {")"}
+          <div className="shrink-0">{")"}</div>
         </div>
       )}
 
@@ -189,10 +189,10 @@ function ToolCallParameters({ input }: { input: Record<string, any> }) {
   }
 
   return (
-    <div className="font-mono flex flex-row flex-wrap gap-1 text-sm">
+    <div className="font-mono text-sm overflow-hidden text-ellipsis whitespace-nowrap min-w-0">
       {params.map(([key, value], index) => (
         <span key={key}>
-          {key}: {formatParameterValue(value)}
+          {formatParameterValue(value)}
           {index < params.length - 1 && ", "}
         </span>
       ))}
@@ -247,9 +247,9 @@ function SearchResults({ results }: { results: any }) {
   };
 
   return (
-    <div className="flex flex-row gap-[1ch] font-mono text-sm">
-      <span>⎿</span>
-      <div>
+    <div className="flex flex-row gap-[1ch] font-mono text-sm max-w-full">
+      <span className="shrink-0">⎿</span>
+      <div className="flex-1 min-w-0">
         {visibleResults.map((result: any, index: number) => {
           const shouldAnimate = !showAll || index < MAX_VISIBLE_RESULTS;
           const ResultComponent = shouldAnimate ? motion.div : "div";
@@ -264,7 +264,7 @@ function SearchResults({ results }: { results: any }) {
           return (
             <ResultComponent
               key={index}
-              className="truncate max-w-[50ch] cursor-pointer hover:underline"
+              className="truncate w-full cursor-pointer hover:underline"
               onClick={() => handleResultClick(result, index)}
               {...animationProps}
             >

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { Message } from "@/components/chat/message";
 import { useScrollToBottom } from "@/components/chat/use-scroll-to-bottom";
@@ -18,9 +18,11 @@ import type {
 
 export default function ChatPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const owner = params.owner as string;
   const repo = params.repo as string;
+  const queryParam = searchParams.get("q");
 
   const [repoInfo, setRepoInfo] = useState<StatusResponse | null>(null);
   const [syncStatus, setSyncStatus] = useState<RepoSyncStatus | null>(null);
@@ -28,6 +30,8 @@ export default function ChatPage() {
   const [error, setError] = useState<string>("");
   const [isPolling, setIsPolling] = useState<boolean>(false);
   const [chatEnabled, setChatEnabled] = useState<boolean>(false);
+  
+  const initialQuerySent = useRef(false);
 
   const {
     messages,
@@ -44,6 +48,13 @@ export default function ChatPage() {
   const [messagesContainerRef, messagesEndRef] =
     useScrollToBottom<HTMLDivElement>();
 
+  // Prepopulate input with query param if present
+  useEffect(() => {
+    if (queryParam && !initialQuerySent.current && input === "") {
+      setInput(queryParam);
+    }
+  }, [queryParam]);
+
   const onSubmit = useMemo(
     () => async (inputValue: string) => {
       if (!chatEnabled) return;
@@ -54,6 +65,14 @@ export default function ChatPage() {
     },
     [sendMessage, setInput, chatEnabled],
   );
+
+  // Auto-send query when chat becomes enabled
+  useEffect(() => {
+    if (chatEnabled && queryParam && !initialQuerySent.current) {
+      initialQuerySent.current = true;
+      onSubmit(queryParam);
+    }
+  }, [chatEnabled, queryParam, onSubmit]);
 
   useEffect(() => {
     async function checkStatus() {
@@ -144,7 +163,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-dvh bg-white">
-      <a href="/" className="absolute top-4 left-4 text-zinc-500 hover:underline font-mono text-sm">
+      <a href="/" className="absolute top-2 md:top-6 left-4 text-zinc-500 hover:underline font-mono text-sm">
       ↩ home
       </a>
       <div className="flex-1 overflow-y-scroll">
@@ -230,7 +249,7 @@ export default function ChatPage() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-xl"
+                className="w-full"
               >
                 <div className="rounded-lg p-6 bg-zinc-50">
                   <h2 className="font-medium mb-2">

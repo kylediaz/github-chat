@@ -22,7 +22,10 @@ export const components = {
     }
 
     return (
-      <code className={`${className} text-sm`} {...props}>
+      <code
+        className={`${className} text-sm bg-secondary py-0.5 px-1 rounded-sm break-words whitespace-pre-wrap`}
+        {...props}
+      >
         {children}
       </code>
     );
