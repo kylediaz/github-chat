@@ -7,6 +7,7 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from "./reasoning";
 import { MemoizedMarkdown } from "@/components/chat/memoized-markdown";
 import { useWindows } from "@/contexts/window-context";
 import { ToolCallWindow } from "@/components/windows/tool-call-window";
+import { SearchResultWindow } from "@/components/windows/search-result-window";
 import { AnimatedEllipsis } from "@/components/shared/misc";
 
 const MAX_VISIBLE_RESULTS = 6;
@@ -221,21 +222,13 @@ function SearchResults({ results }: { results: any }) {
     openWindow({
       title: fileName,
       content: (
-        <div className="flex flex-col h-full bg-white">
-          <div className="flex-1 overflow-auto p-4 bg-white">
-            <div className="font-mono text-sm space-y-2">
-              <div className="text-gray-600 mb-4">
-                <div>{result.path || "unknown"}</div>
-                {result.relevanceScore !== undefined && (
-                  <div className="text-xs">
-                    Relevance: {result.relevanceScore.toFixed(4)}
-                  </div>
-                )}
-              </div>
-              <CodeBlock code={result.content || ""} language="text" />
-            </div>
-          </div>
-        </div>
+        <SearchResultWindow
+          result={{
+            path: result.path || "unknown",
+            content: result.content || "",
+            relevanceScore: result.relevanceScore,
+          }}
+        />
       ),
       x: 550 + index * 30,
       y: 50 + index * 30,

@@ -1,11 +1,12 @@
 "use client";
 
 import React from "react";
+import { VimWindow } from "./vim-window";
 
 interface ToolCallWindowProps {
   toolName: string;
-  input: Record<string, any>;
-  output?: any;
+  input: Record<string, unknown>;
+  output?: unknown;
 }
 
 interface ToolConfig {
@@ -14,8 +15,8 @@ interface ToolConfig {
   parameters: Array<{
     key: string;
     label?: string;
-    formatter?: (value: any) => React.ReactNode;
-    condition?: (input: Record<string, any>) => boolean;
+    formatter?: (value: unknown) => string;
+    condition?: (input: Record<string, unknown>) => boolean;
   }>;
 }
 
@@ -29,7 +30,7 @@ const TOOL_CONFIGS: Record<string, ToolConfig> = {
       { key: "package_name" },
       {
         key: "pattern",
-        formatter: (value) => <span className="break-all">/{value}/g</span>,
+        formatter: (value) => `/${value}/g`,
       },
       { key: "head_limit", condition: (input) => !!input.head_limit },
     ],
@@ -44,22 +45,17 @@ const TOOL_CONFIGS: Record<string, ToolConfig> = {
       {
         key: "semantic_queries",
         condition: (input) => !!input.semantic_queries,
-        formatter: (value) => (
-          <div>
-            {Array.isArray(value) ? (
-              value.map((query: string, index: number) => (
-                <div key={index}>- {query}</div>
-              ))
-            ) : (
-              <div>{String(value)}</div>
-            )}
-          </div>
-        ),
+        formatter: (value) => {
+          if (Array.isArray(value)) {
+            return value.map((q: string) => `  - ${q}`).join("\n");
+          }
+          return String(value);
+        },
       },
       {
         key: "pattern",
         condition: (input) => !!input.pattern,
-        formatter: (value) => <span className="break-all">/{value}/g</span>,
+        formatter: (value) => `/${value}/g`,
       },
       { key: "head_limit", condition: (input) => !!input.head_limit },
     ],
@@ -78,65 +74,44 @@ const TOOL_CONFIGS: Record<string, ToolConfig> = {
   },
 };
 
-export function ToolCallWindow({
-  toolName,
-  input,
-  output,
-}: ToolCallWindowProps) {
+function formatToolCall(
+  toolName: string,
+  input: Record<string, unknown>,
+): string {
   const config = TOOL_CONFIGS[toolName];
 
   if (config) {
-    return (
-      <div className="flex flex-col h-full bg-white">
-        <div className="flex-1 overflow-auto p-4 bg-white">
-          <div className="font-mono text-sm space-y-2">
-            <div className="text-black font-medium">{config.title}</div>
-            <div className="text-black">{config.description}</div>
+    const lines: string[] = [config.title, config.description, ""];
 
-            <div className="mt-4">
-              {config.parameters.map(({ key, label, formatter, condition }) => {
-                if (condition && !condition(input)) return null;
+    for (const { key, label, formatter, condition } of config.parameters) {
+      if (condition && !condition(input)) continue;
 
-                const value = input[key];
-                if (value === undefined) return null;
+      const value = input[key];
+      if (value === undefined) continue;
 
-                return (
-                  <div key={key}>
-                    <div className="text-black font-medium">
-                      {label || key}:
-                    </div>
-                    <div className="ml-4 text-black">
-                      {formatter ? formatter(value) : value || "N/A"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+      const displayLabel = label || key;
+      const displayValue = formatter ? formatter(value) : String(value);
+
+      if (displayValue.includes("\n")) {
+        lines.push(`${displayLabel}:`);
+        lines.push(displayValue);
+      } else {
+        lines.push(`${displayLabel}: ${displayValue}`);
+      }
+    }
+
+    return lines.join("\n");
   }
 
-  return (
-    <div className="flex flex-col h-full bg-white">
-      <div className="flex-1 overflow-auto p-4 bg-white">
-        <div className="font-mono text-sm space-y-2">
-          <div className="text-blue-600"># {toolName}</div>
-          <div className="text-gray-600">
-            # Tool call details and parameters
-          </div>
+  const lines: string[] = [`# ${toolName}`, "# Tool call details and parameters", ""];
 
-          <div className="mt-4">
-            <div className="text-green-600">input:</div>
-            <div className="ml-4 text-black">
-              <pre className="text-sm overflow-auto">
-                {JSON.stringify(input, null, 2)}
-              </pre>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  lines.push("input:");
+  lines.push(JSON.stringify(input, null, 2));
+
+  return lines.join("\n");
+}
+
+export function ToolCallWindow({ toolName, input }: ToolCallWindowProps) {
+  const bufferContent = formatToolCall(toolName, input);
+  return <VimWindow initialBuffer={bufferContent} />;
 }

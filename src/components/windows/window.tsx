@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { WindowState, useWindows } from "@/contexts/window-context";
+import { WindowState, useWindows, WindowCloseContext } from "@/contexts/window-context";
 import { Button } from "@/components/ui/button";
 import { X, Minus, Square, RotateCcw } from "lucide-react";
 
@@ -245,7 +245,9 @@ export function Window({ window }: WindowProps) {
         className="flex-1 overflow-auto"
         style={{ height: "calc(100% - 40px)" }}
       >
-        {window.content}
+        <WindowCloseContext.Provider value={() => closeWindow(window.id)}>
+          {window.content}
+        </WindowCloseContext.Provider>
       </div>
 
       {!window.isMaximized && (

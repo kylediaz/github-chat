@@ -33,6 +33,12 @@ interface WindowContextType {
 
 const WindowContext = createContext<WindowContextType | undefined>(undefined);
 
+export const WindowCloseContext = createContext<(() => void) | null>(null);
+
+export function useWindowClose() {
+  return useContext(WindowCloseContext);
+}
+
 export function useWindows() {
   const context = useContext(WindowContext);
   if (!context) {

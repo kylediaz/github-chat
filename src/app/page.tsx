@@ -99,16 +99,16 @@ export default function Home() {
               )}
             </button>
           </div>
-          {error && (
-            <motion.p
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute -bottom-8 left-6 text-red-500 text-sm font-medium"
-            >
-              {error}
-            </motion.p>
-          )}
         </form>
+        {error && (
+          <motion.p
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="ml-2 mt-2 text-red-500 text-xs font-medium"
+          >
+            {error}
+          </motion.p>
+        )}
         <div className="flex flex-col gap-1 ml-2 mt-4">
           {SUGGESTIONS.map((suggestion, index) => (
             <motion.a key={suggestion.repo} href={`/${suggestion.repo}?q=${encodeURIComponent(suggestion.fullQuery)}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: index * 0.05, ease: "easeOut" }} className="text-zinc-500 hover:underline text-xs">
