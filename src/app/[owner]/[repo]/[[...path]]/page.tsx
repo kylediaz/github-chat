@@ -144,6 +144,9 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-dvh bg-white">
+      <a href="/" className="absolute top-4 left-4 text-zinc-500 hover:underline font-mono text-sm">
+      ↩ home
+      </a>
       <div className="flex-1 overflow-y-scroll">
         <div ref={messagesContainerRef} className="py-8">
           <div className="w-full max-w-xl flex flex-col items-start gap-[1em] mx-auto px-4">

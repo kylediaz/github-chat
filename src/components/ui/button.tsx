@@ -47,6 +47,7 @@ function Button({
   }) {
   const Comp = asChild ? Slot : "button";
 
+  // Renders the button component using Radix Slot if asChild is true
   return (
     <Comp
       data-slot="button"

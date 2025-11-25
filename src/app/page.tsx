@@ -1,6 +1,8 @@
 "use client";
 
+import { AsciiScene } from "@/components/hero/ascii-scene";
 import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
@@ -17,14 +19,6 @@ export default function Home() {
 
     const trimmedUrl = repoUrl.trim();
 
-    // Comprehensive regex to match various GitHub URL formats:
-    // - https://github.com/owner/repo
-    // - http://github.com/owner/repo
-    // - www.github.com/owner/repo
-    // - github.com/owner/repo
-    // - /owner/repo
-    // - /owner/repo/
-    // - owner/repo
     const repoPattern =
       /^(?:https?:\/\/)?(?:www\.)?(?:github\.com\/)?\/?([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)\/?/i;
     const match = trimmedUrl.match(repoPattern);
@@ -37,7 +31,6 @@ export default function Home() {
 
     const [, owner, repo] = match;
 
-    // Remove any trailing slashes or fragments from repo name
     const cleanRepo = repo.split(/[\/?#]/)[0];
 
     if (!owner || !cleanRepo) {
@@ -50,40 +43,57 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-white px-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-        className="w-full max-w-2xl"
+    <div className="relative flex flex-col items-center justify-center min-h-screen bg-neutral-50 px-4 overflow-hidden">
+      <AsciiScene />
+
+      <div
+        className="relative z-10 w-full max-w-sm"
       >
-        <div className="text-center mb-8">
-          <h1 className="font-display text-4xl md:text-5xl font-medium tracking-tight mb-4">
-            Chat with any GitHub Repository
+        <div className="text-left mb-4">
+          <h1 className="font-display text-2xl md:text-3xl font-medium tracking-tight mb-2 text-neutral-900 select-none">
+            <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }}>Chat </motion.span>
+            <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}>with </motion.span>
+            <motion.span initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2, ease: "easeOut" }}>Code</motion.span>
           </h1>
+          <p className="text-zinc-600 select-none">
+            Chunk and embed any Github repository.<br />
+            Entirely within your browser.
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="w-full">
-          <div className="flex flex-col gap-3">
+        <form onSubmit={handleSubmit} className="w-full relative group">
+          <div className="relative flex items-center">
             <input
               type="text"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
               placeholder="https://github.com/chroma-core/chroma"
-              className="w-full px-4 py-3 text-lg border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:border-transparent"
+              className="w-full px-4 py-4 text-base md:text-sm border-input placeholder:text-muted-foreground focus-visible:border-ring border rounded-lg outline-none bg-secondary pr-12 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={loading}
             />
             <button
               type="submit"
               disabled={loading || !repoUrl.trim()}
-              className="w-full px-6 py-3 text-lg font-medium text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 disabled:bg-zinc-300 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? "Loading..." : "Start Chatting"}
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <ArrowRight className="w-4 h-4" />
+              )}
             </button>
           </div>
-          {error && <p className="mt-3 text-red-600 text-sm">{error}</p>}
+          {error && (
+            <motion.p
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="absolute -bottom-8 left-6 text-red-500 text-sm font-medium"
+            >
+              {error}
+            </motion.p>
+          )}
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 }
