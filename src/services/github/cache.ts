@@ -232,7 +232,7 @@ export async function refreshCommit(
       eq(githubRepoCommit.sha, githubRepoState.latestCommitSha)
     )
     .where(eq(githubRepoState.repoName, repoName))
-    .for("update")
+    .for("update", { of: githubRepoState })
     .limit(1);
 
   return current[0]?.commit || null;
