@@ -23,7 +23,7 @@ loadEnvFile();
 
 async function dropAllTables() {
   const databaseUrl = process.env.DATABASE_URL;
-  
+
   if (!databaseUrl) {
     console.error("Error: DATABASE_URL environment variable is not set.");
     console.error("Please set it in your .env.local file or export it.");
@@ -98,4 +98,3 @@ dropAllTables()
     console.error("\nFailed:", error);
     process.exit(1);
   });
-

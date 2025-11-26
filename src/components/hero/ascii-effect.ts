@@ -92,7 +92,7 @@ export class ASCIIEffect extends Effect {
     if (charactersTextureUniform) {
       charactersTextureUniform.value = this.createCharactersTexture(
         characters,
-        fontSize
+        fontSize,
       );
     }
   }
@@ -112,7 +112,7 @@ export class ASCIIEffect extends Effect {
       RepeatWrapping,
       RepeatWrapping,
       NearestFilter,
-      NearestFilter
+      NearestFilter,
     );
 
     const context = canvas.getContext("2d");
@@ -140,4 +140,3 @@ export class ASCIIEffect extends Effect {
     return texture;
   }
 }
-

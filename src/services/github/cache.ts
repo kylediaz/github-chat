@@ -20,7 +20,7 @@ export async function refreshRepo(
   TTL: number = ONE_MONTH_MS,
   force: boolean = false,
 ): Promise<GitHubRepo | null> {
-  const repoName = `${owner}/${repo}`
+  const repoName = `${owner}/${repo}`;
   // Idempotently insert placeholder row
   await db
     .insert(githubRepo)
@@ -39,7 +39,7 @@ export async function refreshRepo(
       const isExpired = lt(githubRepo.fetchedAt, new Date(Date.now() - TTL));
       whereClause = and(
         eq(githubRepo.name, repoName),
-        or(isFirstFetch, isExpired)
+        or(isFirstFetch, isExpired),
       )!;
     }
 
@@ -54,8 +54,9 @@ export async function refreshRepo(
     if (res.length > 0) {
       const fetched = await getRepository(owner, repo);
       switch (fetched.type) {
-        case 'repo': {
-          const updateRepoPromise = tx.update(githubRepo)
+        case "repo": {
+          const updateRepoPromise = tx
+            .update(githubRepo)
             .set({ available: true, fetchedAt: new Date() })
             .where(eq(githubRepo.name, repoName));
 
@@ -78,7 +79,7 @@ export async function refreshRepo(
             .insert(githubRepoDetails)
             .values({
               name: repoName,
-              ...newDetails
+              ...newDetails,
             })
             .onConflictDoUpdate({
               target: githubRepoDetails.name,
@@ -87,8 +88,9 @@ export async function refreshRepo(
           await Promise.all([updateRepoPromise, updateRepoDetailsPromise]);
           return fetched;
         }
-        case 'error':
-          await tx.update(githubRepo)
+        case "error":
+          await tx
+            .update(githubRepo)
             .set({ available: false, fetchedAt: new Date() })
             .where(eq(githubRepo.name, repoName));
           return null;
@@ -140,8 +142,11 @@ export async function refreshRepo(
 }
 
 export async function refreshCommit(
-  owner: string, repo: string, branch: string,
-  TTL: number = ONE_DAY_MS, force: boolean = false
+  owner: string,
+  repo: string,
+  branch: string,
+  TTL: number = ONE_DAY_MS,
+  force: boolean = false,
 ): Promise<typeof githubRepoCommit.$inferSelect | null> {
   const repoName = `${owner}/${repo}`;
   // Idempotently insert placeholder row
@@ -160,10 +165,13 @@ export async function refreshCommit(
       whereClause = eq(githubRepoState.repoName, repoName);
     } else {
       const isFirstFetch = isNull(githubRepoState.latestCommitSha);
-      const isExpired = lt(githubRepoState.fetchedAt, new Date(Date.now() - TTL));
+      const isExpired = lt(
+        githubRepoState.fetchedAt,
+        new Date(Date.now() - TTL),
+      );
       whereClause = and(
         eq(githubRepoState.repoName, repoName),
-        or(isFirstFetch, isExpired)
+        or(isFirstFetch, isExpired),
       )!;
     }
 
@@ -211,7 +219,10 @@ export async function refreshCommit(
         })
         .where(eq(githubRepoState.repoName, repoName));
 
-      const [commit, _] = await Promise.all([upsetCommitPromise, updateStatePromise]);
+      const [commit, _] = await Promise.all([
+        upsetCommitPromise,
+        updateStatePromise,
+      ]);
       return commit[0];
     }
     return null;
@@ -229,7 +240,7 @@ export async function refreshCommit(
     .from(githubRepoState)
     .leftJoin(
       githubRepoCommit,
-      eq(githubRepoCommit.sha, githubRepoState.latestCommitSha)
+      eq(githubRepoCommit.sha, githubRepoState.latestCommitSha),
     )
     .where(eq(githubRepoState.repoName, repoName))
     .for("update", { of: githubRepoState })
@@ -239,8 +250,11 @@ export async function refreshCommit(
 }
 
 export async function refreshTree(
-  owner: string, repo: string, treeSha: string,
-  TTL: number = ONE_DAY_MS, force: boolean = false
+  owner: string,
+  repo: string,
+  treeSha: string,
+  TTL: number = ONE_DAY_MS,
+  force: boolean = false,
 ): Promise<typeof githubRepoTrees.$inferSelect | null> {
   const repoName = `${owner}/${repo}`;
   // Idempotently insert placeholder row
@@ -259,10 +273,13 @@ export async function refreshTree(
       whereClause = eq(githubRepoTrees.treeSha, treeSha);
     } else {
       const isFirstFetch = isNull(githubRepoTrees.tree);
-      const isExpired = lt(githubRepoTrees.fetchedAt, new Date(Date.now() - TTL));
+      const isExpired = lt(
+        githubRepoTrees.fetchedAt,
+        new Date(Date.now() - TTL),
+      );
       whereClause = and(
         eq(githubRepoTrees.treeSha, treeSha),
-        or(isFirstFetch, isExpired)
+        or(isFirstFetch, isExpired),
       )!;
     }
 
@@ -280,7 +297,8 @@ export async function refreshTree(
         return null;
       }
 
-      await tx.update(githubRepoTrees)
+      await tx
+        .update(githubRepoTrees)
         .set({
           tree: fetched.tree,
           fetchedAt: new Date(),

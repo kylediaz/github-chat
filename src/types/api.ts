@@ -33,4 +33,3 @@ export interface StatusResponse {
 export interface ErrorResponse {
   error: string;
 }
-

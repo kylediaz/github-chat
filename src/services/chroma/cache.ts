@@ -11,7 +11,9 @@ import { randomUUID } from "crypto";
 const STATUS_UPDATE_THRESHOLD_MS = 2000;
 
 function isTerminalStatus(status: string | null): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled";
+  return (
+    status === "completed" || status === "failed" || status === "cancelled"
+  );
 }
 
 export async function refreshSource(
@@ -24,7 +26,12 @@ export async function refreshSource(
   const existingSource = await db
     .select({ source: chromaSyncSources })
     .from(chromaSyncSources)
-    .where(and(eq(chromaSyncSources.repoName, repoName), isNotNull(chromaSyncSources.uuid)))
+    .where(
+      and(
+        eq(chromaSyncSources.repoName, repoName),
+        isNotNull(chromaSyncSources.uuid),
+      ),
+    )
     .limit(1);
 
   const source = existingSource[0]?.source;
@@ -47,7 +54,12 @@ export async function refreshSource(
     const res = await tx
       .select({ source: chromaSyncSources })
       .from(chromaSyncSources)
-      .where(and(eq(chromaSyncSources.repoName, repoName), isNull(chromaSyncSources.uuid)))
+      .where(
+        and(
+          eq(chromaSyncSources.repoName, repoName),
+          isNull(chromaSyncSources.uuid),
+        ),
+      )
       .for("update", { skipLocked: true });
 
     if (res.length > 0) {
@@ -114,7 +126,7 @@ export async function refreshInvocation(
     const whereClause = and(
       eq(chromaSyncInvocations.sourceUuid, sourceUuid),
       eq(chromaSyncInvocations.refIdentifier, commitSha),
-      isFirstFetch
+      isFirstFetch,
     )!;
 
     const res = await tx
@@ -127,7 +139,7 @@ export async function refreshInvocation(
       const created = await createInvocation(
         sourceUuid,
         commitSha,
-        res[0].invocation.targetCollectionName
+        res[0].invocation.targetCollectionName,
       );
 
       const updated = await tx
@@ -154,8 +166,8 @@ export async function refreshInvocation(
     .where(
       and(
         eq(chromaSyncInvocations.sourceUuid, sourceUuid),
-        eq(chromaSyncInvocations.refIdentifier, commitSha)
-      )
+        eq(chromaSyncInvocations.refIdentifier, commitSha),
+      ),
     )
     .for("update")
     .limit(1);
@@ -183,11 +195,11 @@ export async function refreshInvocationStatus(
     } else {
       const isExpired = lt(
         chromaSyncInvocations.fetchedAt,
-        new Date(Date.now() - TTL)
+        new Date(Date.now() - TTL),
       );
       whereClause = and(
         eq(chromaSyncInvocations.id, invocation.id),
-        isExpired
+        isExpired,
       )!;
     }
 
@@ -227,4 +239,3 @@ export async function refreshInvocationStatus(
 
   return current[0]?.invocation || null;
 }
-

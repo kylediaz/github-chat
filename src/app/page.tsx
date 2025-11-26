@@ -10,19 +10,22 @@ const SUGGESTIONS = [
   {
     repo: "numpy/numpy",
     queryPreview: "How does NumPy decide when a ufunc loop uses SIMD?",
-    fullQuery: "How does NumPy decide when a ufunc loop uses SIMD, BLAS, or plain C?"
+    fullQuery:
+      "How does NumPy decide when a ufunc loop uses SIMD, BLAS, or plain C?",
   },
   {
     repo: "cased/kit",
     queryPreview: "How does the Kit code agent dependency analyzer work?",
-    fullQuery: "How does the dependency analyzer in src/kit/dependency_analyzer work?"
+    fullQuery:
+      "How does the dependency analyzer in src/kit/dependency_analyzer work?",
   },
   {
     repo: "pandas-dev/pandas",
-    queryPreview: "When does pandas use \"copy-on-write\"?",
-    fullQuery: "When does pandas operate \"copy-on-write\" vs. view semantics? What code paths trigger real copies during slicing, boolean indexing, and assignment?"
-  }
-]
+    queryPreview: 'When does pandas use "copy-on-write"?',
+    fullQuery:
+      'When does pandas operate "copy-on-write" vs. view semantics? What code paths trigger real copies during slicing, boolean indexing, and assignment?',
+  },
+];
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState<string>("");
@@ -64,15 +67,14 @@ export default function Home() {
     <div className="relative flex flex-col items-center justify-center min-h-screen bg-neutral-50 px-4 overflow-hidden">
       <AsciiScene />
 
-      <div
-        className="relative z-10 w-full max-w-sm"
-      >
+      <div className="relative z-10 w-full max-w-sm">
         <div className="text-left mb-4">
           <h1 className="font-display text-2xl md:text-3xl font-medium tracking-tight mb-2 text-neutral-900 select-none">
             Chat with Code
           </h1>
           <p className="text-zinc-600 select-none">
-            Chunk and embed any Github repository.<br />
+            Chunk and embed any Github repository.
+            <br />
             Entirely within your browser.
           </p>
         </div>
@@ -111,11 +113,23 @@ export default function Home() {
         )}
         <div className="flex flex-col gap-1 ml-2 mt-4">
           {SUGGESTIONS.map((suggestion, index) => (
-            <motion.a key={suggestion.repo} href={`/${suggestion.repo}?q=${encodeURIComponent(suggestion.fullQuery)}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: index * 0.05, ease: "easeOut" }} className="text-zinc-500 hover:underline text-xs">
-              {suggestion.queryPreview} <ArrowRight className="w-3 h-3 inline-block" />
+            <motion.a
+              key={suggestion.repo}
+              href={`/${suggestion.repo}?q=${encodeURIComponent(suggestion.fullQuery)}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.4,
+                delay: index * 0.05,
+                ease: "easeOut",
+              }}
+              className="text-zinc-500 hover:underline text-xs"
+            >
+              {suggestion.queryPreview}{" "}
+              <ArrowRight className="w-3 h-3 inline-block" />
             </motion.a>
           ))}
-          </div>
+        </div>
       </div>
 
       <div className="absolute bottom-8 text-center text-sm text-neutral-500 z-10">
@@ -127,9 +141,25 @@ export default function Home() {
           className="underline hover:text-neutral-800 transition-colors"
         >
           Kyle
+        </a>{" "}
+        | built using{" "}
+        <a
+          href="https://trychroma.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-neutral-800 transition-colors"
+        >
+          Chroma
+        </a>{" "}
+        and{" "}
+        <a
+          href="https://ai-sdk.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-neutral-800 transition-colors"
+        >
+          Vercel AI SDK
         </a>
-        {" "}
-        | built using <a href="https://trychroma.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-neutral-800 transition-colors">Chroma</a> and <a href="https://ai-sdk.dev" target="_blank" rel="noopener noreferrer" className="underline hover:text-neutral-800 transition-colors">Vercel AI SDK</a>
       </div>
     </div>
   );

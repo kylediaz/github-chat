@@ -6,10 +6,7 @@ import {
 } from "@chroma-core/chroma-cloud-qwen";
 import { env } from "@/lib/env";
 import { trace } from "@opentelemetry/api";
-import {
-  chromaDocumentMetadataSchema,
-  type QueryResult,
-} from "@/types/chroma";
+import { chromaDocumentMetadataSchema, type QueryResult } from "@/types/chroma";
 
 const tracer = trace.getTracer("chroma");
 
@@ -70,4 +67,3 @@ export async function queryCollection(
     span.end();
   }
 }
-

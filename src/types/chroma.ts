@@ -65,4 +65,3 @@ export interface NormalizedInvocationStatus {
     database_name?: string;
   };
 }
-

@@ -163,10 +163,7 @@ export function RepoTree({
           const prefix = isLastInList ? "└── " : "├── ";
 
           return (
-            <div
-              key={actualIndex}
-              className="flex items-center whitespace-pre"
-            >
+            <div key={actualIndex} className="flex items-center whitespace-pre">
               <span className="whitespace-pre">{prefix}</span>
               <a
                 href={item.url}

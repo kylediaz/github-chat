@@ -103,7 +103,11 @@ function formatToolCall(
     return lines.join("\n");
   }
 
-  const lines: string[] = [`# ${toolName}`, "# Tool call details and parameters", ""];
+  const lines: string[] = [
+    `# ${toolName}`,
+    "# Tool call details and parameters",
+    "",
+  ];
 
   lines.push("input:");
   lines.push(JSON.stringify(input, null, 2));

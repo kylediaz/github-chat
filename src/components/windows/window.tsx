@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { WindowState, useWindows, WindowCloseContext } from "@/contexts/window-context";
+import {
+  WindowState,
+  useWindows,
+  WindowCloseContext,
+} from "@/contexts/window-context";
 import { Button } from "@/components/ui/button";
 import { X, Minus, Square, RotateCcw } from "lucide-react";
 
@@ -290,4 +294,3 @@ export function Window({ window }: WindowProps) {
     </div>
   );
 }
-

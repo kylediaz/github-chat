@@ -13,67 +13,58 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const githubRepo = pgTable(
-  "github_repo",
-  {
-    // name = owner/repo
-    name: text("name").notNull().primaryKey(),
+export const githubRepo = pgTable("github_repo", {
+  // name = owner/repo
+  name: text("name").notNull().primaryKey(),
 
-    fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
+  fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
 
-    // null = not fetched yet
-    // true = available
-    // false = not available -- does not exist, inaccessible, etc.
-    available: boolean("available"),
-  }
-);
+  // null = not fetched yet
+  // true = available
+  // false = not available -- does not exist, inaccessible, etc.
+  available: boolean("available"),
+});
 
 // Exists only if the repo is available
-export const githubRepoDetails = pgTable(
-  "github_repo_details",
-  {
-    name: text("name")
-      .notNull()
-      .primaryKey()
-      .references(() => githubRepo.name, { onDelete: "cascade" }),
+export const githubRepoDetails = pgTable("github_repo_details", {
+  name: text("name")
+    .notNull()
+    .primaryKey()
+    .references(() => githubRepo.name, { onDelete: "cascade" }),
 
-    description: text("description").notNull(),
-    defaultBranch: text("default_branch").notNull(),
-    htmlUrl: text("html_url").notNull(),
-    language: text("language").notNull(),
-    stargazersCount: integer("stargazers_count").notNull(),
-    forksCount: integer("forks_count").notNull(),
-    watchersCount: integer("watchers_count").notNull(),
-    openIssuesCount: integer("open_issues_count").notNull(),
-    subscribersCount: integer("subscribers_count").notNull(),
-    fork: boolean("fork").notNull(),
-    private: boolean("private").notNull(),
-    licenseName: text("license_name"),
-    createdAt: timestamp("created_at").notNull(),
-  },
-);
+  description: text("description").notNull(),
+  defaultBranch: text("default_branch").notNull(),
+  htmlUrl: text("html_url").notNull(),
+  language: text("language").notNull(),
+  stargazersCount: integer("stargazers_count").notNull(),
+  forksCount: integer("forks_count").notNull(),
+  watchersCount: integer("watchers_count").notNull(),
+  openIssuesCount: integer("open_issues_count").notNull(),
+  subscribersCount: integer("subscribers_count").notNull(),
+  fork: boolean("fork").notNull(),
+  private: boolean("private").notNull(),
+  licenseName: text("license_name"),
+  createdAt: timestamp("created_at").notNull(),
+});
 
-export const githubRepoState = pgTable(
-  "github_repo_state",
-  {
-    repoName: text("repo_name")
-      .notNull()
-      .primaryKey()
-      .references(() => githubRepo.name, { onDelete: "cascade" }),
+export const githubRepoState = pgTable("github_repo_state", {
+  repoName: text("repo_name")
+    .notNull()
+    .primaryKey()
+    .references(() => githubRepo.name, { onDelete: "cascade" }),
 
-    // Current commit SHA of HEAD from GET /repos/{owner}/{repo}/branches/{branch}
-    latestCommitSha: text("latest_commit_sha").references(
-      () => githubRepoCommit.sha,
-    ),
+  // Current commit SHA of HEAD from GET /repos/{owner}/{repo}/branches/{branch}
+  latestCommitSha: text("latest_commit_sha").references(
+    () => githubRepoCommit.sha,
+  ),
 
-    // Latest commit that has a completed invocation
-    latestProcessedCommitSha: text("latest_processed_commit_sha").references(
-      () => githubRepoCommit.sha,
-    ),
+  // Latest commit that has a completed invocation
+  latestProcessedCommitSha: text("latest_processed_commit_sha").references(
+    () => githubRepoCommit.sha,
+  ),
 
-    fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
-  },
-);
+  fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+});
 
 // Unlike the other tables, this table does not need to be able to
 // have a placeholder because we never fetch a commit by its SHA
@@ -107,7 +98,7 @@ export const githubRepoTrees = pgTable(
     repoName: text("repo_name")
       .notNull()
       .references(() => githubRepo.name, { onDelete: "cascade" }),
-    
+
     tree: jsonb("tree"), // null = not fetched yet
 
     fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
@@ -168,9 +159,8 @@ export const chromaSyncInvocations = pgTable(
     refIdentifierIdx: index("chroma_sync_invocations_ref_identifier_idx").on(
       table.refIdentifier,
     ),
-    sourceRefUnique: uniqueIndex("chroma_sync_invocations_source_ref_unique").on(
-      table.sourceUuid,
-      table.refIdentifier,
-    ),
+    sourceRefUnique: uniqueIndex(
+      "chroma_sync_invocations_source_ref_unique",
+    ).on(table.sourceUuid, table.refIdentifier),
   }),
 );

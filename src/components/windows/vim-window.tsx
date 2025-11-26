@@ -20,7 +20,9 @@ const SHELL_HELP = `Available commands:
 export function VimWindow({ initialBuffer }: VimWindowProps) {
   const onClose = useWindowClose();
   const [view, setView] = useState<View>("vim");
-  const [buffer, setBuffer] = useState<string[]>(() => initialBuffer.split("\n"));
+  const [buffer, setBuffer] = useState<string[]>(() =>
+    initialBuffer.split("\n"),
+  );
   const [cursor, setCursor] = useState({ line: 0, col: 0 });
   const [mode, setMode] = useState<Mode>("normal");
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -35,11 +37,12 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
     (line: number, col: number, lines: string[]) => {
       const clampedLine = Math.max(0, Math.min(line, lines.length - 1));
       const lineLength = lines[clampedLine]?.length || 0;
-      const maxCol = mode === "insert" ? lineLength : Math.max(0, lineLength - 1);
+      const maxCol =
+        mode === "insert" ? lineLength : Math.max(0, lineLength - 1);
       const clampedCol = Math.max(0, Math.min(col, maxCol));
       return { line: clampedLine, col: clampedCol };
     },
-    [mode]
+    [mode],
   );
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
 
       return { line: l, col: c };
     },
-    [buffer]
+    [buffer],
   );
 
   const findWordEnd = useCallback(
@@ -96,7 +99,7 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
 
       return { line: l, col: Math.max(0, c - 1) };
     },
-    [buffer]
+    [buffer],
   );
 
   const findPrevWordStart = useCallback(
@@ -115,17 +118,20 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
 
       return { line: l, col: Math.max(0, c) };
     },
-    [buffer]
+    [buffer],
   );
 
   const deleteWord = useCallback(() => {
     const currentLine = buffer[cursor.line] || "";
     let endCol = cursor.col;
 
-    while (endCol < currentLine.length && !/\s/.test(currentLine[endCol])) endCol++;
-    while (endCol < currentLine.length && /\s/.test(currentLine[endCol])) endCol++;
+    while (endCol < currentLine.length && !/\s/.test(currentLine[endCol]))
+      endCol++;
+    while (endCol < currentLine.length && /\s/.test(currentLine[endCol]))
+      endCol++;
 
-    const newLine = currentLine.slice(0, cursor.col) + currentLine.slice(endCol);
+    const newLine =
+      currentLine.slice(0, cursor.col) + currentLine.slice(endCol);
     const newBuffer = [...buffer];
     newBuffer[cursor.line] = newLine;
     setBuffer(newBuffer);
@@ -149,7 +155,8 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
     const currentLine = buffer[cursor.line] || "";
     if (currentLine.length === 0) return;
 
-    const newLine = currentLine.slice(0, cursor.col) + currentLine.slice(cursor.col + 1);
+    const newLine =
+      currentLine.slice(0, cursor.col) + currentLine.slice(cursor.col + 1);
     const newBuffer = [...buffer];
     newBuffer[cursor.line] = newLine;
     setBuffer(newBuffer);
@@ -158,7 +165,7 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
 
   const executeVimCommand = useCallback((cmd: string) => {
     const trimmed = cmd.trim();
-    
+
     switch (trimmed) {
       case "q":
       case "q!":
@@ -169,43 +176,46 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
         setShellHistory([]);
         break;
     }
-    
+
     setCommandInput("");
     setMode("normal");
   }, []);
 
-  const executeShellCommand = useCallback((cmd: string) => {
-    const trimmed = cmd.trim();
-    const newHistory = [...shellHistory, `$ ${trimmed}`];
-    
-    switch (trimmed) {
-      case "help":
-        newHistory.push(SHELL_HELP);
-        break;
-      case "vim":
-      case "nvim":
-        setBuffer([""]);
-        setCursor({ line: 0, col: 0 });
-        setMode("normal");
-        setView("vim");
-        return;
-      case "chroma":
-        window.open("https://trychroma.com", "_blank");
-        newHistory.push("Opening trychroma.com...");
-        break;
-      case "exit":
-        onClose?.();
-        return;
-      case "":
-        break;
-      default:
-        newHistory.push(`command not found: ${trimmed}`);
-        newHistory.push(`Type 'help' for available commands.`);
-    }
-    
-    setShellHistory(newHistory);
-    setShellInput("");
-  }, [shellHistory, onClose]);
+  const executeShellCommand = useCallback(
+    (cmd: string) => {
+      const trimmed = cmd.trim();
+      const newHistory = [...shellHistory, `$ ${trimmed}`];
+
+      switch (trimmed) {
+        case "help":
+          newHistory.push(SHELL_HELP);
+          break;
+        case "vim":
+        case "nvim":
+          setBuffer([""]);
+          setCursor({ line: 0, col: 0 });
+          setMode("normal");
+          setView("vim");
+          return;
+        case "chroma":
+          window.open("https://trychroma.com", "_blank");
+          newHistory.push("Opening trychroma.com...");
+          break;
+        case "exit":
+          onClose?.();
+          return;
+        case "":
+          break;
+        default:
+          newHistory.push(`command not found: ${trimmed}`);
+          newHistory.push(`Type 'help' for available commands.`);
+      }
+
+      setShellHistory(newHistory);
+      setShellInput("");
+    },
+    [shellHistory, onClose],
+  );
 
   const handleNormalMode = useCallback(
     (e: React.KeyboardEvent) => {
@@ -299,7 +309,7 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
       deleteLine,
       deleteWord,
       deleteChar,
-    ]
+    ],
   );
 
   const handleInsertMode = useCallback(
@@ -317,7 +327,9 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
         const currentLine = buffer[cursor.line] || "";
 
         if (cursor.col > 0) {
-          const newLine = currentLine.slice(0, cursor.col - 1) + currentLine.slice(cursor.col);
+          const newLine =
+            currentLine.slice(0, cursor.col - 1) +
+            currentLine.slice(cursor.col);
           const newBuffer = [...buffer];
           newBuffer[cursor.line] = newLine;
           setBuffer(newBuffer);
@@ -339,7 +351,9 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
         const currentLine = buffer[cursor.line] || "";
 
         if (cursor.col < currentLine.length) {
-          const newLine = currentLine.slice(0, cursor.col) + currentLine.slice(cursor.col + 1);
+          const newLine =
+            currentLine.slice(0, cursor.col) +
+            currentLine.slice(cursor.col + 1);
           const newBuffer = [...buffer];
           newBuffer[cursor.line] = newLine;
           setBuffer(newBuffer);
@@ -393,14 +407,17 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
       if (key.length === 1) {
         e.preventDefault();
         const currentLine = buffer[cursor.line] || "";
-        const newLine = currentLine.slice(0, cursor.col) + key + currentLine.slice(cursor.col);
+        const newLine =
+          currentLine.slice(0, cursor.col) +
+          key +
+          currentLine.slice(cursor.col);
         const newBuffer = [...buffer];
         newBuffer[cursor.line] = newLine;
         setBuffer(newBuffer);
         setCursor((c) => ({ ...c, col: c.col + 1 }));
       }
     },
-    [buffer, cursor, clampCursor]
+    [buffer, cursor, clampCursor],
   );
 
   const handleCommandMode = useCallback(
@@ -433,7 +450,7 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
         setCommandInput((c) => c + key);
       }
     },
-    [commandInput, executeVimCommand]
+    [commandInput, executeVimCommand],
   );
 
   const handleShellKeyDown = useCallback(
@@ -457,7 +474,7 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
         setShellInput((c) => c + key);
       }
     },
-    [shellInput, executeShellCommand]
+    [shellInput, executeShellCommand],
   );
 
   const handleKeyDown = useCallback(
@@ -476,7 +493,14 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
         handleCommandMode(e);
       }
     },
-    [view, mode, handleNormalMode, handleInsertMode, handleCommandMode, handleShellKeyDown]
+    [
+      view,
+      mode,
+      handleNormalMode,
+      handleInsertMode,
+      handleCommandMode,
+      handleShellKeyDown,
+    ],
   );
 
   useEffect(() => {
@@ -498,9 +522,13 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
         onKeyDown={handleKeyDown}
       >
         <div className="flex-1 overflow-auto p-2">
-          <div className="text-gray-500 mb-2">Type &apos;help&apos; for available commands.</div>
+          <div className="text-gray-500 mb-2">
+            Type &apos;help&apos; for available commands.
+          </div>
           {shellHistory.map((line, i) => (
-            <div key={i} className="whitespace-pre-wrap">{line}</div>
+            <div key={i} className="whitespace-pre-wrap">
+              {line}
+            </div>
           ))}
           <div className="flex items-center">
             <span className="text-green-600 mr-[.75ch]">$ </span>
@@ -546,9 +574,7 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
                         : "border-l-2 border-black"
                     }
                   >
-                    {mode === "normal"
-                      ? line[cursor.col] || " "
-                      : ""}
+                    {mode === "normal" ? line[cursor.col] || " " : ""}
                   </span>
                   {line.slice(mode === "normal" ? cursor.col + 1 : cursor.col)}
                 </>
@@ -562,7 +588,10 @@ export function VimWindow({ initialBuffer }: VimWindowProps) {
 
       <div className="border-t border-gray-200 px-2 py-1 flex justify-between text-xs text-gray-600">
         {mode === "command" ? (
-          <span className="font-bold">:{commandInput}<span className="animate-pulse">▌</span></span>
+          <span className="font-bold">
+            :{commandInput}
+            <span className="animate-pulse">▌</span>
+          </span>
         ) : (
           <span className="font-bold">
             -- {mode.toUpperCase()} --

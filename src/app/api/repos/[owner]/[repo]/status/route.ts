@@ -134,7 +134,9 @@ function formatResponse(state: CurrentState): StatusResponse {
   let syncStatus: StatusResponse["sync_status"] = null;
   if (!state.state || !state.state.latestProcessedCommitSha) {
     syncStatus = "processing";
-  } else if (state.state.latestCommitSha === state.state.latestProcessedCommitSha) {
+  } else if (
+    state.state.latestCommitSha === state.state.latestProcessedCommitSha
+  ) {
     syncStatus = "up_to_date";
   } else {
     syncStatus = "out_of_date";
@@ -148,15 +150,15 @@ function formatResponse(state: CurrentState): StatusResponse {
     is_private: repoDetails?.private ?? false,
     repo_info: repoDetails
       ? {
-        fullName: state.repo?.name ?? "",
-        description: repoDetails.description,
-        htmlUrl: repoDetails.htmlUrl,
-        language: repoDetails.language,
-        stargazersCount: repoDetails.stargazersCount,
-        forksCount: repoDetails.forksCount,
-        watchersCount: repoDetails.watchersCount,
-        openIssuesCount: repoDetails.openIssuesCount,
-      }
+          fullName: state.repo?.name ?? "",
+          description: repoDetails.description,
+          htmlUrl: repoDetails.htmlUrl,
+          language: repoDetails.language,
+          stargazersCount: repoDetails.stargazersCount,
+          forksCount: repoDetails.forksCount,
+          watchersCount: repoDetails.watchersCount,
+          openIssuesCount: repoDetails.openIssuesCount,
+        }
       : null,
     commit_sha: state.latestCommit?.sha ?? null,
     tree,
@@ -204,7 +206,10 @@ export async function GET(
     }
 
     const needsRefresh = {
-      commit: !state.state || !state.state.latestCommitSha || isStale(state.state.fetchedAt, ONE_DAY_MS),
+      commit:
+        !state.state ||
+        !state.state.latestCommitSha ||
+        isStale(state.state.fetchedAt, ONE_DAY_MS),
       tree: state.latestCommit && (!state.tree || state.tree.tree === null),
       source: !state.source || (state.source && !state.source.uuid),
       invocation: state.latestCommit && state.source && !state.invocation,
@@ -234,9 +239,12 @@ export async function GET(
     if (needsRefresh.invocationStatus && state.invocation) {
       const updated = await refreshInvocationStatus(state.invocation);
       if (updated?.status && isTerminalStatus(updated?.status)) {
-        await db.update(githubRepoState).set({
-          latestProcessedCommitSha: updated?.refIdentifier,
-        }).where(eq(githubRepoState.repoName, `${owner}/${repoName}`));
+        await db
+          .update(githubRepoState)
+          .set({
+            latestProcessedCommitSha: updated?.refIdentifier,
+          })
+          .where(eq(githubRepoState.repoName, `${owner}/${repoName}`));
       }
     }
 

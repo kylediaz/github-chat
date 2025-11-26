@@ -48,8 +48,8 @@ export function AsciiScene() {
           background: "#ffffff",
           invert: true,
           colorize: true,
-        })
-      )
+        }),
+      ),
     );
 
     renderer.domElement.style.position = "absolute";
@@ -99,7 +99,7 @@ export function AsciiScene() {
       x: number,
       y: number,
       z: number,
-      scale: number
+      scale: number,
     ): FloatingShape => {
       const mesh = new THREE.Mesh(geometry, sharedMaterial);
       mesh.position.set(x, y, z);
@@ -107,7 +107,7 @@ export function AsciiScene() {
       mesh.rotation.set(
         Math.random() * Math.PI,
         Math.random() * Math.PI,
-        Math.random() * Math.PI
+        Math.random() * Math.PI,
       );
       scene.add(mesh);
 
@@ -137,14 +137,14 @@ export function AsciiScene() {
       octahedronGeom,
       dodecahedronGeom,
       tetrahedronGeom,
-      torusGeom
+      torusGeom,
     );
 
     shapes.push(createShape(icosahedronGeom, -320, 120, -100, 1.8));
     shapes.push(createShape(octahedronGeom, 380, -80, -200, 2.2));
     shapes.push(createShape(dodecahedronGeom, -180, -180, 50, 1.5));
     shapes.push(createShape(tetrahedronGeom, 280, 200, -150, 1.6));
-    
+
     shapes.push(createShape(icosahedronGeom, 150, 280, -300, 1.0));
     shapes.push(createShape(octahedronGeom, -400, -50, -250, 1.2));
     shapes.push(createShape(dodecahedronGeom, 450, 50, -350, 0.9));
@@ -185,7 +185,7 @@ export function AsciiScene() {
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(
         shapes.map((s) => s.mesh),
-        false
+        false,
       );
 
       if (intersects.length > 0) {
@@ -195,19 +195,19 @@ export function AsciiScene() {
         if (draggedShape) {
           // Set drag plane at the object's current z-depth
           plane.setFromNormalAndCoplanarPoint(planeNormal, object.position);
-          
+
           if (raycaster.ray.intersectPlane(plane, intersection)) {
             offset.copy(intersection).sub(object.position);
           }
-          
-          container.style.cursor = 'grabbing';
+
+          container.style.cursor = "grabbing";
         }
       }
     };
 
     const onDocumentMouseUp = () => {
       draggedShape = null;
-      container.style.cursor = 'auto';
+      container.style.cursor = "auto";
     };
 
     document.addEventListener("mousemove", onDocumentMouseMove);

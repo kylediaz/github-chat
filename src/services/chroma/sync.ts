@@ -167,4 +167,3 @@ export async function getInvocationStatus(
     span.end();
   }
 }
-

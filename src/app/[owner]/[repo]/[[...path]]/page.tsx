@@ -30,7 +30,7 @@ export default function ChatPage() {
   const [error, setError] = useState<string>("");
   const [isPolling, setIsPolling] = useState<boolean>(false);
   const [chatEnabled, setChatEnabled] = useState<boolean>(false);
-  
+
   const initialQuerySent = useRef(false);
 
   const {
@@ -81,7 +81,9 @@ export default function ChatPage() {
         const data: StatusResponse | ErrorResponse = await response.json();
 
         if (!response.ok || "error" in data) {
-          setError((data as ErrorResponse).error || "Failed to check repository");
+          setError(
+            (data as ErrorResponse).error || "Failed to check repository",
+          );
           return;
         }
 
@@ -163,8 +165,11 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-dvh bg-white">
-      <a href="/" className="absolute top-2 md:top-6 left-4 text-zinc-500 hover:underline font-mono text-sm">
-      ↩ home
+      <a
+        href="/"
+        className="absolute top-2 md:top-6 left-4 text-zinc-500 hover:underline font-mono text-sm"
+      >
+        ↩ home
       </a>
       <div className="flex-1 overflow-y-scroll">
         <div ref={messagesContainerRef} className="py-8">
@@ -227,7 +232,10 @@ export default function ChatPage() {
               <>
                 <RepoTree
                   tree={repoInfo.tree}
-                  repoUrl={repoInfo.repo_info?.htmlUrl || `https://github.com/${owner}/${repo}`}
+                  repoUrl={
+                    repoInfo.repo_info?.htmlUrl ||
+                    `https://github.com/${owner}/${repo}`
+                  }
                   commitSha={commitSha}
                   className="w-full"
                   autoScroll={syncStatus === "processing"}
@@ -237,11 +245,20 @@ export default function ChatPage() {
                   {syncStatus === "processing" ? (
                     <>
                       syncing...
-                      {repoInfo.tree.reduce((sum, entry) => sum + (entry.size || 0), 0) > 500 * 1024 * 1024 && (
-                        <span className="text-zinc-400"> (large repo, this might take a while)</span>
+                      {repoInfo.tree.reduce(
+                        (sum, entry) => sum + (entry.size || 0),
+                        0,
+                      ) >
+                        500 * 1024 * 1024 && (
+                        <span className="text-zinc-400">
+                          {" "}
+                          (large repo, this might take a while)
+                        </span>
                       )}
                     </>
-                  ) : "✔︎ synced"}
+                  ) : (
+                    "✔︎ synced"
+                  )}
                 </span>
               </>
             ) : null}

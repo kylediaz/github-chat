@@ -49,7 +49,10 @@ export async function POST(
       )
       .innerJoin(
         chromaSyncInvocations,
-        eq(chromaSyncInvocations.refIdentifier, githubRepoState.latestProcessedCommitSha),
+        eq(
+          chromaSyncInvocations.refIdentifier,
+          githubRepoState.latestProcessedCommitSha,
+        ),
       )
       .innerJoin(
         githubRepoCommit,
@@ -73,12 +76,16 @@ export async function POST(
     const { state, details, tree: treeRow, invocation } = repoData[0];
 
     if (state.latestCommitSha && !state.latestProcessedCommitSha) {
-      const errorResponse: ErrorResponse = { error: "Repository has not completed its first sync" };
+      const errorResponse: ErrorResponse = {
+        error: "Repository has not completed its first sync",
+      };
       return new Response(JSON.stringify(errorResponse), { status: 400 });
     }
 
     if (invocation.status !== "completed") {
-      const errorResponse: ErrorResponse = { error: "latestProcessedCommitSha is not complete" }
+      const errorResponse: ErrorResponse = {
+        error: "latestProcessedCommitSha is not complete",
+      };
       return new Response(JSON.stringify(errorResponse), { status: 500 });
     }
 
@@ -140,7 +147,12 @@ export async function POST(
     };
 
     const result = streamText({
-      model: openai("gpt-4.1"),
+      model: openai("gpt-5-mini"),
+      providerOptions: {
+        openai: {
+          textVerbosity: "low",
+        },
+      },
       system: `You are a helpful AI assistant that helps users understand the ${owner}/${repo} GitHub repository.
 ${details.description ? `\nDescription: ${details.description}` : ""}
 ${details.language ? `Primary language: ${details.language}` : ""}
@@ -148,9 +160,9 @@ ${directories.length > 0 ? `\nDirectory structure:\n${directories.map((d) => `  
 
 You have access to tools to search through the repository code and files. Use these tools to provide accurate, context-aware answers about the codebase.
 
-When referencing code, always cite the file path and provide relevant context. Keep your answers concise and focused on the user's question.
+When referencing code, always cite the file path. Keep your answers short (aim for less than 3 paragraphs) and focused on the user's question.
 
-You can make at most 2 tool calls every time the user asks a question. Try to answer the question before hand. If you can't find the answer, succintly describe what you've found.`,
+You can make at most 2 searches each time the user asks a question. Try to answer the question before hand. If you can't find the answer after 2 searches, succintly describe what you've found.`,
       messages: convertToModelMessages(messages),
       tools,
       stopWhen: stepCountIs(5),
@@ -171,4 +183,3 @@ You can make at most 2 tool calls every time the user asks a question. Try to an
     return new Response(JSON.stringify(errorResponse), { status: 500 });
   }
 }
-

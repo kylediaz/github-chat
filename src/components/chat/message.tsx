@@ -3,14 +3,12 @@ import { UIDataTypes, UIMessage, UIMessagePart, UITools } from "ai";
 import { motion } from "framer-motion";
 
 import { CodeBlock } from "@/components/chat/code-block";
-import { Reasoning, ReasoningContent, ReasoningTrigger } from "./reasoning";
+import { Reasoning } from "./reasoning";
 import { MemoizedMarkdown } from "@/components/chat/memoized-markdown";
 import { useWindows } from "@/contexts/window-context";
 import { ToolCallWindow } from "@/components/windows/tool-call-window";
 import { SearchResultWindow } from "@/components/windows/search-result-window";
 import { AnimatedEllipsis } from "@/components/shared/misc";
-
-const MAX_VISIBLE_RESULTS = 6;
 
 export interface MessageProps {
   message: UIMessage;
@@ -96,9 +94,8 @@ function MessageContent({
             );
           case "reasoning":
             return (
-              <Reasoning key={index}>
-                <ReasoningTrigger />
-                <ReasoningContent>{part.text}</ReasoningContent>
+              <Reasoning key={index} isStreaming={part.state !== "done"}>
+                {part.text}
               </Reasoning>
             );
           case "dynamic-tool":
@@ -145,7 +142,7 @@ function ToolInvocation({
       ),
       x: 650,
       y: 100,
-      width: 400,
+      width: 600,
       height: 600,
       isMinimized: false,
       isMaximized: false,
@@ -201,7 +198,13 @@ function ToolCallParameters({ input }: { input: Record<string, any> }) {
   );
 }
 
-function SearchResults({ results }: { results: any }) {
+function SearchResults({
+  results,
+  maxVisibleResults = 4,
+}: {
+  results: any;
+  maxVisibleResults?: number;
+}) {
   const { openWindow } = useWindows();
   const [showAll, setShowAll] = useState(false);
 
@@ -212,8 +215,8 @@ function SearchResults({ results }: { results: any }) {
   const resultsArray = results.results;
   const visibleResults = showAll
     ? resultsArray
-    : resultsArray.slice(0, MAX_VISIBLE_RESULTS);
-  const hiddenCount = resultsArray.length - MAX_VISIBLE_RESULTS;
+    : resultsArray.slice(0, maxVisibleResults);
+  const hiddenCount = resultsArray.length - maxVisibleResults;
 
   const handleResultClick = (result: any, index: number) => {
     const fileName =
@@ -232,7 +235,7 @@ function SearchResults({ results }: { results: any }) {
       ),
       x: 550 + index * 30,
       y: 50 + index * 30,
-      width: 350,
+      width: 600,
       height: 600,
       isMinimized: false,
       isMaximized: false,
@@ -244,7 +247,7 @@ function SearchResults({ results }: { results: any }) {
       <span className="shrink-0">⎿</span>
       <div className="flex-1 min-w-0">
         {visibleResults.map((result: any, index: number) => {
-          const shouldAnimate = !showAll || index < MAX_VISIBLE_RESULTS;
+          const shouldAnimate = !showAll || index < maxVisibleResults;
           const ResultComponent = shouldAnimate ? motion.div : "div";
           const animationProps = shouldAnimate
             ? {
@@ -281,4 +284,3 @@ function SearchResults({ results }: { results: any }) {
     </div>
   );
 }
-
