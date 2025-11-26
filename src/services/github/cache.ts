@@ -111,7 +111,7 @@ export async function refreshRepo(
     .from(githubRepo)
     .leftJoin(githubRepoDetails, eq(githubRepoDetails.name, githubRepo.name))
     .where(eq(githubRepo.name, repoName))
-    .for("update") // Wait on lock
+    .for("update", { of: githubRepo })
     .limit(1);
 
   if (current.length === 0 || !current[0].repo.available) {
