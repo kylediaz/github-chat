@@ -10,6 +10,7 @@ import { motion } from "framer-motion";
 import { DefaultChatTransport } from "ai";
 import { AnimatedEllipsis, Spinner } from "@/components/shared/misc";
 import { RepoTree } from "@/components/chat/repo-tree";
+import { CommitLink } from "@/components/chat/commit-link";
 import type {
   StatusResponse,
   ErrorResponse,
@@ -26,7 +27,6 @@ export default function ChatPage() {
 
   const [repoInfo, setRepoInfo] = useState<StatusResponse | null>(null);
   const [syncStatus, setSyncStatus] = useState<RepoSyncStatus | null>(null);
-  const [commitSha, setCommitSha] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [isPolling, setIsPolling] = useState<boolean>(false);
   const [chatEnabled, setChatEnabled] = useState<boolean>(false);
@@ -89,7 +89,6 @@ export default function ChatPage() {
 
         setRepoInfo(data);
         setSyncStatus(data.sync_status);
-        setCommitSha(data.commit_sha);
 
         if (!data.exists) {
           setError("Repository not found");
@@ -129,7 +128,6 @@ export default function ChatPage() {
 
         setRepoInfo(statusData);
         setSyncStatus(statusData.sync_status);
-        setCommitSha(statusData.commit_sha);
 
         if (statusData.sync_status === "up_to_date") {
           setChatEnabled(true);
@@ -191,7 +189,7 @@ export default function ChatPage() {
               {!repoInfo?.repo_info ||
               (repoInfo.repo_info &&
                 !repoInfo.repo_info.stargazersCount &&
-                !commitSha &&
+                !repoInfo.latest_commit &&
                 !repoInfo.repo_info.description) ? (
                 <div className="flex items-center gap-2 text-zinc-500 whitespace-pre">
                   <Spinner />
@@ -201,17 +199,29 @@ export default function ChatPage() {
                 <>
                   <div className="whitespace-pre">
                     {repoInfo.repo_info.stargazersCount.toLocaleString()} stars
-                    {commitSha ? (
+                    {repoInfo.latest_commit &&
+                    (syncStatus === "up_to_date" ||
+                      syncStatus === "out_of_date") ? (
                       <>
                         {" | "}
-                        <a
-                          href={`${repoInfo.repo_info.htmlUrl}/commit/${commitSha}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {commitSha.substring(0, 7)}
-                        </a>
+                        {syncStatus === "up_to_date" ? (
+                          <CommitLink commit={repoInfo.latest_commit} />
+                        ) : (
+                          <>
+                            {repoInfo.latest_processed_commit ? (
+                              <>
+                                <CommitLink
+                                  commit={repoInfo.latest_processed_commit}
+                                />
+                                {" → "}
+                                <CommitLink commit={repoInfo.latest_commit} />
+                                {" (updating)"}
+                              </>
+                            ) : (
+                              <CommitLink commit={repoInfo.latest_commit} />
+                            )}
+                          </>
+                        )}
                       </>
                     ) : (
                       ""
@@ -228,7 +238,7 @@ export default function ChatPage() {
                 <Spinner />
                 <span>loading files</span>
               </div>
-            ) : repoInfo?.tree && commitSha ? (
+            ) : repoInfo?.tree && repoInfo.latest_commit ? (
               <>
                 <RepoTree
                   tree={repoInfo.tree}
@@ -236,7 +246,7 @@ export default function ChatPage() {
                     repoInfo.repo_info?.htmlUrl ||
                     `https://github.com/${owner}/${repo}`
                   }
-                  commitSha={commitSha}
+                  commitSha={repoInfo.latest_commit.sha}
                   className="w-full"
                   autoScroll={syncStatus === "processing"}
                   scrollSpeed={10}

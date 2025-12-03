@@ -21,12 +21,21 @@ export interface SyncResponse {
   status: RepoSyncStatus;
 }
 
+export interface CommitInfo {
+  sha: string;
+  message: string;
+  authorName: string | null;
+  authorDate: Date | null;
+  htmlUrl: string;
+}
+
 export interface StatusResponse {
   exists: boolean;
   sync_status: RepoSyncStatus | null;
   is_private: boolean;
   repo_info: RepoInfo | null;
-  commit_sha: string | null;
+  latest_commit: CommitInfo | null;
+  latest_processed_commit: CommitInfo | null;
   tree: GitHubTree["tree"] | null;
 }
 

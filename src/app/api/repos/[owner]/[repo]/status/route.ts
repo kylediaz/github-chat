@@ -57,6 +57,7 @@ interface CurrentState {
   repoDetails: typeof githubRepoDetails.$inferSelect | null;
   state: typeof githubRepoState.$inferSelect | null;
   latestCommit: typeof githubRepoCommit.$inferSelect | null;
+  latestProcessedCommit: typeof githubRepoCommit.$inferSelect | null;
   tree: typeof githubRepoTrees.$inferSelect | null;
   source: typeof chromaSyncSources.$inferSelect | null;
   invocation: typeof chromaSyncInvocations.$inferSelect | null;
@@ -112,11 +113,23 @@ async function getCurrentState(
 
   const row = result[0];
 
+  let latestProcessedCommit: typeof githubRepoCommit.$inferSelect | null =
+    null;
+  if (row?.state?.latestProcessedCommitSha) {
+    const processedCommitResult = await db
+      .select()
+      .from(githubRepoCommit)
+      .where(eq(githubRepoCommit.sha, row.state.latestProcessedCommitSha))
+      .limit(1);
+    latestProcessedCommit = processedCommitResult[0] || null;
+  }
+
   return {
     repo: row?.repo || null,
     repoDetails: row?.repoDetails || null,
     state: row?.state || null,
     latestCommit: row?.commit || null,
+    latestProcessedCommit,
     tree: row?.tree || null,
     source: row?.source || null,
     invocation: row?.invocation || null,
@@ -144,6 +157,27 @@ function formatResponse(state: CurrentState): StatusResponse {
 
   const tree = (state.tree?.tree as GitHubTree["tree"]) ?? null;
 
+  const latestCommit: StatusResponse["latest_commit"] = state.latestCommit
+    ? {
+        sha: state.latestCommit.sha,
+        message: state.latestCommit.message,
+        authorName: state.latestCommit.authorName,
+        authorDate: state.latestCommit.authorDate,
+        htmlUrl: state.latestCommit.htmlUrl,
+      }
+    : null;
+
+  const latestProcessedCommit: StatusResponse["latest_processed_commit"] =
+    state.latestProcessedCommit
+      ? {
+          sha: state.latestProcessedCommit.sha,
+          message: state.latestProcessedCommit.message,
+          authorName: state.latestProcessedCommit.authorName,
+          authorDate: state.latestProcessedCommit.authorDate,
+          htmlUrl: state.latestProcessedCommit.htmlUrl,
+        }
+      : null;
+
   return {
     exists: isAvailable,
     sync_status: syncStatus,
@@ -160,7 +194,8 @@ function formatResponse(state: CurrentState): StatusResponse {
           openIssuesCount: repoDetails.openIssuesCount,
         }
       : null,
-    commit_sha: state.latestCommit?.sha ?? null,
+    latest_commit: latestCommit,
+    latest_processed_commit: latestProcessedCommit,
     tree,
   };
 }
