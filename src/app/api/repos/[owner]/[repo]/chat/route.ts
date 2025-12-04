@@ -165,7 +165,7 @@ When referencing code, always cite the file path. Keep your answers short (aim f
 You can make at most 2 searches each time the user asks a question. Try to answer the question before hand. If you can't find the answer after 2 searches, succintly describe what you've found.`,
       messages: convertToModelMessages(messages),
       tools,
-      stopWhen: stepCountIs(5),
+      stopWhen: stepCountIs(10),
     });
 
     return result.toUIMessageStreamResponse({
