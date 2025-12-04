@@ -1,26 +1,25 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
-import { Message } from "@/components/chat/message";
-import { useScrollToBottom } from "@/components/chat/use-scroll-to-bottom";
-import { ChatInput } from "@/components/chat/chat-input";
-import { motion } from "framer-motion";
 import { DefaultChatTransport } from "ai";
-import { AnimatedEllipsis, Spinner } from "@/components/shared/misc";
-import { RepoTree } from "@/components/chat/repo-tree";
+import { motion } from "framer-motion";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChatInput } from "@/components/chat/chat-input";
 import { CommitLink } from "@/components/chat/commit-link";
+import { Message } from "@/components/chat/message";
+import { RepoTree } from "@/components/chat/repo-tree";
+import { useScrollToBottom } from "@/components/chat/use-scroll-to-bottom";
+import { AnimatedEllipsis, Spinner } from "@/components/shared/misc";
 import type {
-  StatusResponse,
   ErrorResponse,
   RepoSyncStatus,
+  StatusResponse,
 } from "@/types/api";
 
 export default function ChatPage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const owner = params.owner as string;
   const repo = params.repo as string;
   const queryParam = searchParams.get("q");
@@ -63,7 +62,7 @@ export default function ChatPage() {
       });
       setInput("");
     },
-    [sendMessage, setInput, chatEnabled],
+    [sendMessage, chatEnabled],
   );
 
   // Auto-send query when chat becomes enabled
@@ -100,8 +99,14 @@ export default function ChatPage() {
           return;
         }
 
-        if (data.sync_status === "up_to_date") {
+        if (
+          data.sync_status === "up_to_date" ||
+          data.sync_status === "out_of_date"
+        ) {
           setChatEnabled(true);
+          if (data.sync_status === "out_of_date") {
+            setIsPolling(true);
+          }
         } else if (data.sync_status === "failed") {
           setError("Sync failed. Please try again.");
         } else {
@@ -129,9 +134,14 @@ export default function ChatPage() {
         setRepoInfo(statusData);
         setSyncStatus(statusData.sync_status);
 
-        if (statusData.sync_status === "up_to_date") {
+        if (
+          statusData.sync_status === "up_to_date" ||
+          statusData.sync_status === "out_of_date"
+        ) {
           setChatEnabled(true);
-          setIsPolling(false);
+          if (statusData.sync_status === "up_to_date") {
+            setIsPolling(false);
+          }
         } else if (statusData.sync_status === "failed") {
           setError("Sync failed. Please try again.");
           setIsPolling(false);
@@ -150,12 +160,12 @@ export default function ChatPage() {
         <div className="max-w-md text-center">
           <h2 className="text-2xl font-semibold text-red-600 mb-4">Error</h2>
           <p className="text-zinc-600 mb-6">{error}</p>
-          <button
-            onClick={() => router.push("/")}
+          <a
+            href="/"
             className="px-6 py-2 text-white bg-neutral-900 rounded-lg hover:bg-neutral-800 transition-colors"
           >
             Go Back
-          </button>
+          </a>
         </div>
       </div>
     );
