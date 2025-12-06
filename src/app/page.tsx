@@ -133,16 +133,7 @@ export default function Home() {
       </div>
 
       <div className="absolute bottom-8 text-center text-sm text-neutral-500 z-10">
-        made by{" "}
-        <a
-          href="https://kylediaz.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline hover:text-neutral-800 transition-colors"
-        >
-          Kyle
-        </a>{" "}
-        | built using{" "}
+        Built using{" "}
         <a
           href="https://trychroma.com"
           target="_blank"

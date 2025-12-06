@@ -2,7 +2,6 @@ const requiredEnvVars = [
   "CHROMA_API_KEY",
   "CHROMA_TENANT",
   "CHROMA_DATABASE",
-  "GITHUB_APP_ID",
   "GITHUB_TOKEN",
   "DATABASE_URL",
 ] as const;

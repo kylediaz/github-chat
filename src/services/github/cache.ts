@@ -9,10 +9,7 @@ import {
 import { eq, gt, isNull, lt, or, and, SQL } from "drizzle-orm";
 import { getRepository, getBranchCommit, getRepositoryTree } from "./client";
 import { GitHubRepo } from "@/types/github";
-
-const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const ONE_SECOND_MS = 1000;
+import { ONE_MONTH_MS, ONE_DAY_MS } from "@/lib/constants";
 
 export async function refreshRepo(
   owner: string,
@@ -199,7 +196,7 @@ export async function refreshCommit(
         htmlUrl: fetched.htmlUrl,
       };
 
-      const upsetCommitPromise = tx
+      const upsertCommitPromise = tx
         .insert(githubRepoCommit)
         .values({
           repoName,
@@ -219,8 +216,8 @@ export async function refreshCommit(
         })
         .where(eq(githubRepoState.repoName, repoName));
 
-      const [commit, _] = await Promise.all([
-        upsetCommitPromise,
+      const [commit] = await Promise.all([
+        upsertCommitPromise,
         updateStatePromise,
       ]);
       return commit[0];

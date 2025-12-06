@@ -15,10 +15,10 @@ import {
   chromaSyncInvocations,
 } from "@/db";
 import { eq, and } from "drizzle-orm";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { validateEnv } from "@/lib/env";
 import { queryCollection } from "@/services/chroma/client";
-import type { ErrorResponse } from "@/types/api";
 import type { GitHubTree } from "@/types/github";
 
 validateEnv();
@@ -69,24 +69,23 @@ export async function POST(
       .limit(1);
 
     if (repoData.length === 0) {
-      const errorResponse: ErrorResponse = { error: "Not synced" };
-      return new Response(JSON.stringify(errorResponse), { status: 400 });
+      return NextResponse.json({ error: "Not synced" }, { status: 400 });
     }
 
     const { state, details, tree: treeRow, invocation } = repoData[0];
 
     if (state.latestCommitSha && !state.latestProcessedCommitSha) {
-      const errorResponse: ErrorResponse = {
-        error: "Repository has not completed its first sync",
-      };
-      return new Response(JSON.stringify(errorResponse), { status: 400 });
+      return NextResponse.json(
+        { error: "Repository has not completed its first sync" },
+        { status: 400 },
+      );
     }
 
     if (invocation.status !== "completed") {
-      const errorResponse: ErrorResponse = {
-        error: "latestProcessedCommitSha is not complete",
-      };
-      return new Response(JSON.stringify(errorResponse), { status: 500 });
+      return NextResponse.json(
+        { error: "latestProcessedCommitSha is not complete" },
+        { status: 500 },
+      );
     }
 
     const collectionName = invocation.targetCollectionName;
@@ -179,7 +178,9 @@ You can make at most 2 searches each time the user asks a question. Try to answe
     });
   } catch (error) {
     console.error("Chat API Error:", error);
-    const errorResponse: ErrorResponse = { error: "Internal Server Error" };
-    return new Response(JSON.stringify(errorResponse), { status: 500 });
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 },
+    );
   }
 }

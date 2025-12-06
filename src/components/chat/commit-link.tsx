@@ -36,12 +36,12 @@ export function CommitLink({ commit }: { commit: CommitInfo }) {
         </a>
       </TooltipTrigger>
       <TooltipContent
-        className="bg-white text-black border border-black rounded-none font-mono max-w-xs"
+        className="bg-white text-black border border-black rounded-none font-mono max-w-xs text-xs"
         sideOffset={5}
       >
         <div className="flex flex-col gap-1">
-          <div className="whitespace-pre-wrap text-xs">{firstFiveLines}</div>
-          <div className="text-xs opacity-70 border-t border-black pt-1 mt-1">
+          <div className="whitespace-pre-wrap">{firstFiveLines}</div>
+          <div className="opacity-70 border-t border-black pt-1 mt-1">
             {commit.authorName || "Unknown author"}
             {commit.authorDate && ` • ${formatCommitDate(commit.authorDate)}`}
           </div>
@@ -50,4 +50,3 @@ export function CommitLink({ commit }: { commit: CommitInfo }) {
     </Tooltip>
   );
 }
-

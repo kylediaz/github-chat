@@ -7,14 +7,7 @@ import {
 import { eq, and, isNull, lt, SQL, isNotNull } from "drizzle-orm";
 import { createSource, createInvocation, getInvocationStatus } from "./sync";
 import { randomUUID } from "crypto";
-
-const STATUS_UPDATE_THRESHOLD_MS = 2000;
-
-function isTerminalStatus(status: string | null): boolean {
-  return (
-    status === "completed" || status === "failed" || status === "cancelled"
-  );
-}
+import { STATUS_UPDATE_THRESHOLD_MS, isTerminalStatus } from "@/lib/constants";
 
 export async function refreshSource(
   owner: string,

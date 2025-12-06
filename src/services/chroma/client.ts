@@ -43,17 +43,29 @@ export async function queryCollection(
 
     if (results.ids && results.ids[0]) {
       for (let i = 0; i < results.ids[0].length; i++) {
+        const id = results.ids[0][i];
         const rawMetadata = results.metadatas?.[0]?.[i];
-        const parseResult = rawMetadata
-          ? chromaDocumentMetadataSchema.safeParse(rawMetadata)
-          : null;
-        const metadata = parseResult?.success ? parseResult.data : null;
+        const document = results.documents?.[0]?.[i];
+
+        if (!rawMetadata) {
+          throw new Error(`Chroma returned null metadata for result ${id}`);
+        }
+        if (!document) {
+          throw new Error(`Chroma returned null document for result ${id}`);
+        }
+
+        const parseResult = chromaDocumentMetadataSchema.safeParse(rawMetadata);
+        if (!parseResult.success) {
+          throw new Error(
+            `Failed to parse metadata for result ${id}: ${parseResult.error.message}`,
+          );
+        }
 
         formattedResults.push({
-          id: results.ids[0][i],
-          distance: results.distances?.[0]?.[i] || 0,
-          metadata: metadata!,
-          document: results.documents?.[0]?.[i]!,
+          id,
+          distance: results.distances?.[0]?.[i] ?? 0,
+          metadata: parseResult.data,
+          document,
         });
       }
     }

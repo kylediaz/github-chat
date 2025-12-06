@@ -4,7 +4,19 @@ Chat with any GitHub repository using AI.
 
 ![preview](doc/1203.gif)
 
+## How It Works
+
+When a user searches for a repo, it will automatically index the repo in Chroma using the Chroma Sync API.
+
+The Chroma Sync API will automatically chunk, embed, and insert the repo files into a Chroma collection,
+and can be queried like any other Chroma collection.
+
+The Chroma Sync API is aware of the Git tree, so it only needs to re-index that have changed since the last sync.
+
 ## Quick Start
+
+Sign up for [Chroma Cloud](https://trychroma.com), make a database and get your
+Chroma credentials.
 
 Create a `.env.local` file with the following variables:
 
@@ -35,10 +47,9 @@ pnpm run db:push
 pnpm dev
 ```
 
-## How it works
+Your app template should now be running on [localhost:3000](http://localhost:3000).
 
-When a user searches for a repo, it will automatically index the repo in Chroma using the Github Sync API.
+## Model Providers
 
-Most of the complexity is regarding how distributed concensus is handled among requests. I abused Postgres row-level
-locks and transactions over idempotency to make sure that this system doesn't have race conditions that will make
-unnecessary API calls to github, or repo sync job invocations.
+This template ships with OpenAI gpt-5.1 as the default. However, with the AI SDK, you can switch LLM providers to
+Anthropic, Cohere, and many more with just a few lines of code.

@@ -13,7 +13,14 @@ import {
   chromaSyncInvocations,
 } from "@/db";
 import { eq, and, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { validateEnv } from "@/lib/env";
+import {
+  ONE_MONTH_MS,
+  ONE_DAY_MS,
+  STATUS_UPDATE_THRESHOLD_MS,
+  isTerminalStatus,
+} from "@/lib/constants";
 import type { GitHubTree } from "@/types/github";
 import {
   refreshRepo,
@@ -29,20 +36,6 @@ import {
 const tracer = trace.getTracer("api");
 
 validateEnv();
-
-const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const STATUS_UPDATE_THRESHOLD_MS = 2000;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function isTerminalStatus(status: string | null): boolean {
-  return (
-    status === "completed" || status === "failed" || status === "cancelled"
-  );
-}
 
 function isStale(fetchedAt: Date, maxAge: number): boolean {
   return Date.now() - fetchedAt.getTime() > maxAge;
@@ -68,6 +61,7 @@ async function getCurrentState(
   repo: string,
 ): Promise<CurrentState> {
   const repoName = getRepoName(owner, repo);
+  const processedCommit = alias(githubRepoCommit, "processed_commit");
 
   const result = await db
     .select({
@@ -75,6 +69,7 @@ async function getCurrentState(
       repoDetails: githubRepoDetails,
       state: githubRepoState,
       commit: githubRepoCommit,
+      processedCommit: processedCommit,
       tree: githubRepoTrees,
       source: chromaSyncSources,
       invocation: chromaSyncInvocations,
@@ -85,6 +80,10 @@ async function getCurrentState(
     .leftJoin(
       githubRepoCommit,
       eq(githubRepoCommit.sha, githubRepoState.latestCommitSha),
+    )
+    .leftJoin(
+      processedCommit,
+      eq(processedCommit.sha, githubRepoState.latestProcessedCommitSha),
     )
     .leftJoin(
       githubRepoTrees,
@@ -113,23 +112,12 @@ async function getCurrentState(
 
   const row = result[0];
 
-  let latestProcessedCommit: typeof githubRepoCommit.$inferSelect | null =
-    null;
-  if (row?.state?.latestProcessedCommitSha) {
-    const processedCommitResult = await db
-      .select()
-      .from(githubRepoCommit)
-      .where(eq(githubRepoCommit.sha, row.state.latestProcessedCommitSha))
-      .limit(1);
-    latestProcessedCommit = processedCommitResult[0] || null;
-  }
-
   return {
     repo: row?.repo || null,
     repoDetails: row?.repoDetails || null,
     state: row?.state || null,
     latestCommit: row?.commit || null,
-    latestProcessedCommit,
+    latestProcessedCommit: row?.processedCommit || null,
     tree: row?.tree || null,
     source: row?.source || null,
     invocation: row?.invocation || null,
@@ -260,16 +248,24 @@ export async function GET(
       state.repo?.available === true &&
       state.repoDetails?.defaultBranch
     ) {
-      refreshCommit(owner, repoName, state.repoDetails.defaultBranch);
+      refreshCommit(owner, repoName, state.repoDetails.defaultBranch).catch(
+        (err) => console.error("Failed to refresh commit:", err),
+      );
     }
     if (needsRefresh.tree && state.latestCommit) {
-      refreshTree(owner, repoName, state.latestCommit.treeSha);
+      refreshTree(owner, repoName, state.latestCommit.treeSha).catch((err) =>
+        console.error("Failed to refresh tree:", err),
+      );
     }
     if (needsRefresh.source && state.repo?.available === true) {
-      refreshSource(owner, repoName);
+      refreshSource(owner, repoName).catch((err) =>
+        console.error("Failed to refresh source:", err),
+      );
     }
     if (needsRefresh.invocation && state.latestCommit && state.source) {
-      refreshInvocation(owner, repoName, state.latestCommit.sha);
+      refreshInvocation(owner, repoName, state.latestCommit.sha).catch((err) =>
+        console.error("Failed to refresh invocation:", err),
+      );
     }
     if (needsRefresh.invocationStatus && state.invocation) {
       const updated = await refreshInvocationStatus(state.invocation);

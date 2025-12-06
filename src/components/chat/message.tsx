@@ -200,7 +200,7 @@ function ToolCallParameters({ input }: { input: Record<string, any> }) {
 
 function SearchResults({
   results,
-  maxVisibleResults = 4,
+  maxVisibleResults = 3,
 }: {
   results: any;
   maxVisibleResults?: number;
