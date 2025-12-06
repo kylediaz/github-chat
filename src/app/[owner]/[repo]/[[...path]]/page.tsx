@@ -1,9 +1,10 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { useQuery } from "@tanstack/react-query";
 import { DefaultChatTransport } from "ai";
 import { motion } from "framer-motion";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatInput } from "@/components/chat/chat-input";
 import { CommitLink } from "@/components/chat/commit-link";
@@ -11,11 +12,38 @@ import { Message } from "@/components/chat/message";
 import { RepoTree } from "@/components/chat/repo-tree";
 import { useScrollToBottom } from "@/components/chat/use-scroll-to-bottom";
 import { AnimatedEllipsis, Spinner } from "@/components/shared/misc";
-import type {
-  ErrorResponse,
-  RepoSyncStatus,
-  StatusResponse,
-} from "@/types/api";
+import type { ErrorResponse, StatusResponse } from "@/types/api";
+
+const POLLING_INTERVAL_MS = 1000;
+const LARGE_REPO_SIZE_BYTES = 500 * 1024 * 1024;
+
+async function fetchRepoStatus(
+  owner: string,
+  repo: string,
+): Promise<StatusResponse> {
+  const response = await fetch(`/api/repos/${owner}/${repo}/status`);
+  const data: StatusResponse | ErrorResponse = await response.json();
+
+  if (!response.ok || "error" in data) {
+    throw new Error(
+      (data as ErrorResponse).error || "Failed to check repository",
+    );
+  }
+
+  if (!data.exists) {
+    throw new Error("Repository not found");
+  }
+
+  if (data.is_private) {
+    throw new Error("Private repositories are not supported");
+  }
+
+  if (data.sync_status === "failed") {
+    throw new Error("Sync failed. Please try again.");
+  }
+
+  return data;
+}
 
 export default function ChatPage() {
   const params = useParams();
@@ -24,13 +52,27 @@ export default function ChatPage() {
   const repo = params.repo as string;
   const queryParam = searchParams.get("q");
 
-  const [repoInfo, setRepoInfo] = useState<StatusResponse | null>(null);
-  const [syncStatus, setSyncStatus] = useState<RepoSyncStatus | null>(null);
-  const [error, setError] = useState<string>("");
-  const [isPolling, setIsPolling] = useState<boolean>(false);
-  const [chatEnabled, setChatEnabled] = useState<boolean>(false);
-
   const initialQuerySent = useRef(false);
+
+  const {
+    data: repoInfo,
+    error: queryError,
+  } = useQuery({
+    queryKey: ["repoStatus", owner, repo],
+    queryFn: () => fetchRepoStatus(owner, repo),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return POLLING_INTERVAL_MS;
+      if (data.sync_status === "up_to_date") return false;
+      return POLLING_INTERVAL_MS;
+    },
+    retry: false,
+  });
+
+  const syncStatus = repoInfo?.sync_status ?? null;
+  const chatEnabled =
+    syncStatus === "up_to_date" || syncStatus === "out_of_date";
+  const error = queryError?.message ?? "";
 
   const {
     messages,
@@ -47,12 +89,11 @@ export default function ChatPage() {
   const [messagesContainerRef, messagesEndRef] =
     useScrollToBottom<HTMLDivElement>();
 
-  // Prepopulate input with query param if present
   useEffect(() => {
     if (queryParam && !initialQuerySent.current && input === "") {
       setInput(queryParam);
     }
-  }, [queryParam]);
+  }, [queryParam, input]);
 
   const onSubmit = useMemo(
     () => async (inputValue: string) => {
@@ -65,94 +106,12 @@ export default function ChatPage() {
     [sendMessage, chatEnabled],
   );
 
-  // Auto-send query when chat becomes enabled
   useEffect(() => {
     if (chatEnabled && queryParam && !initialQuerySent.current) {
       initialQuerySent.current = true;
       onSubmit(queryParam);
     }
   }, [chatEnabled, queryParam, onSubmit]);
-
-  useEffect(() => {
-    async function checkStatus() {
-      try {
-        const response = await fetch(`/api/repos/${owner}/${repo}/status`);
-        const data: StatusResponse | ErrorResponse = await response.json();
-
-        if (!response.ok || "error" in data) {
-          setError(
-            (data as ErrorResponse).error || "Failed to check repository",
-          );
-          return;
-        }
-
-        setRepoInfo(data);
-        setSyncStatus(data.sync_status);
-
-        if (!data.exists) {
-          setError("Repository not found");
-          return;
-        }
-
-        if (data.is_private) {
-          setError("Private repositories are not supported");
-          return;
-        }
-
-        if (
-          data.sync_status === "up_to_date" ||
-          data.sync_status === "out_of_date"
-        ) {
-          setChatEnabled(true);
-          if (data.sync_status === "out_of_date") {
-            setIsPolling(true);
-          }
-        } else if (data.sync_status === "failed") {
-          setError("Sync failed. Please try again.");
-        } else {
-          setIsPolling(true);
-        }
-      } catch (err) {
-        console.error("Error:", err);
-        setError("Failed to check repository status");
-      }
-    }
-
-    checkStatus();
-  }, [owner, repo]);
-
-  useEffect(() => {
-    if (!isPolling) return;
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const statusResponse = await fetch(
-          `/api/repos/${owner}/${repo}/status`,
-        );
-        const statusData: StatusResponse = await statusResponse.json();
-
-        setRepoInfo(statusData);
-        setSyncStatus(statusData.sync_status);
-
-        if (
-          statusData.sync_status === "up_to_date" ||
-          statusData.sync_status === "out_of_date"
-        ) {
-          setChatEnabled(true);
-          if (statusData.sync_status === "up_to_date") {
-            setIsPolling(false);
-          }
-        } else if (statusData.sync_status === "failed") {
-          setError("Sync failed. Please try again.");
-          setIsPolling(false);
-        }
-      } catch (err) {
-        console.error("Error polling status:", err);
-      }
-    }, 2500);
-
-    return () => clearInterval(pollInterval);
-  }, [isPolling, owner, repo]);
 
   if (error) {
     return (
@@ -268,8 +227,7 @@ export default function ChatPage() {
                       {repoInfo.tree.reduce(
                         (sum, entry) => sum + (entry.size || 0),
                         0,
-                      ) >
-                        500 * 1024 * 1024 && (
+                      ) > LARGE_REPO_SIZE_BYTES && (
                         <span className="text-zinc-400">
                           {" "}
                           (large repo, this might take a while)

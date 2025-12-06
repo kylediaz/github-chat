@@ -8,6 +8,7 @@ import {
 import "./globals.css";
 import { WindowProvider } from "@/contexts/window-context";
 import { WindowManager } from "@/components/windows/window-manager";
+import { QueryProvider } from "@/contexts/query-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -52,10 +53,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${playfairDisplay.variable} ${playfair.variable} antialiased overscroll-contain overflow-hidden`}
       >
-        <WindowProvider>
-          {children}
-          <WindowManager />
-        </WindowProvider>
+        <QueryProvider>
+          <WindowProvider>
+            {children}
+            <WindowManager />
+          </WindowProvider>
+        </QueryProvider>
       </body>
     </html>
   );
