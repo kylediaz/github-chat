@@ -143,7 +143,9 @@ function createSearchTool(collectionName: string) {
     description:
       "Semantic search for code in the repository using natural language.",
     inputSchema: z.object({
-      query: z.string().describe("Natural language query to search chunks of code"),
+      query: z
+        .string()
+        .describe("Natural language query to search chunks of code"),
     }),
     execute: async ({ query }: { query: string }) => {
       const results = await queryCollection(
@@ -158,8 +160,7 @@ function createSearchTool(collectionName: string) {
 
 function createCatTool(collectionName: string) {
   return createTool({
-    description:
-      "Read the full contents of a file by its path.",
+    description: "Read the full contents of a file by its path.",
     inputSchema: z.object({
       path: z.string().describe("The file path to read (e.g. 'src/index.ts')"),
     }),
@@ -194,7 +195,9 @@ function createGrepTool(collectionName: string) {
     description:
       "Search for exact text matches in the repository. Use for finding specific strings, function names, or identifiers.",
     inputSchema: z.object({
-      pattern: z.string().describe("Text pattern to search for (exact match, not regex)"),
+      pattern: z
+        .string()
+        .describe("Text pattern to search for (exact match, not regex)"),
     }),
     execute: async ({ pattern }: { pattern: string }) => {
       const result = await grepCollection(collectionName, pattern);

@@ -62,8 +62,10 @@ export function WindowProvider({ children }: WindowProviderProps) {
 
   const getCenteredPosition = useCallback(
     (width: number, height: number) => {
-      const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1200;
-      const screenHeight = typeof window !== "undefined" ? window.innerHeight : 800;
+      const screenWidth =
+        typeof window !== "undefined" ? window.innerWidth : 1200;
+      const screenHeight =
+        typeof window !== "undefined" ? window.innerHeight : 800;
 
       const baseX = Math.max(0, (screenWidth - width) / 2);
       const baseY = Math.max(0, (screenHeight - height) / 2);
@@ -84,7 +86,8 @@ export function WindowProvider({ children }: WindowProviderProps) {
     (windowData: OpenWindowParams) => {
       const id = `window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1200;
+      const screenWidth =
+        typeof window !== "undefined" ? window.innerWidth : 1200;
       const isMobile = screenWidth < 768;
 
       const position =

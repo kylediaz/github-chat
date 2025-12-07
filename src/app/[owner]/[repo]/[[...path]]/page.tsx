@@ -54,10 +54,7 @@ export default function ChatPage() {
 
   const initialQuerySent = useRef(false);
 
-  const {
-    data: repoInfo,
-    error: queryError,
-  } = useQuery({
+  const { data: repoInfo, error: queryError } = useQuery({
     queryKey: ["repoStatus", owner, repo],
     queryFn: () => fetchRepoStatus(owner, repo),
     refetchInterval: (query) => {

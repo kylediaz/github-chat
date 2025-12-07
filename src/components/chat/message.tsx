@@ -1,11 +1,6 @@
 import { ReactNode, useState, useEffect } from "react";
 import { UIDataTypes, UIMessage, UIMessagePart, UITools } from "ai";
-import {
-  motion,
-  useMotionValue,
-  useTransform,
-  animate,
-} from "framer-motion";
+import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 
 import { CodeBlock } from "@/components/chat/code-block";
 import { Reasoning } from "./reasoning";
@@ -165,7 +160,10 @@ function ToolInvocation({
       {isLoading ? (
         <div className="flex flex-row gap-[1ch] font-mono text-sm">
           <span>⎿</span>
-          <span>loading<AnimatedEllipsis /></span>
+          <span>
+            loading
+            <AnimatedEllipsis />
+          </span>
         </div>
       ) : (
         <ToolOutput toolName={toolName} output={output} />
@@ -259,7 +257,8 @@ function SearchOutput({ output }: { output: any }) {
           className="cursor-pointer hover:underline"
           onClick={() => setExpanded(true)}
         >
-          found <AnimatedNumber value={results.length} /> {results.length === 1 ? "result" : "results"}
+          found <AnimatedNumber value={results.length} />{" "}
+          {results.length === 1 ? "result" : "results"}
         </span>
       </div>
     );
@@ -318,11 +317,11 @@ function GrepOutput({ output }: { output: any }) {
   return (
     <div className="flex flex-row gap-[1ch] font-mono text-sm">
       <span>⎿</span>
-      <span
-        className="cursor-pointer hover:underline"
-        onClick={handleClick}
-      >
-        found <AnimatedNumber value={matchCount} /> {matchCount === 1 ? "match" : "matches"} in <AnimatedNumber value={fileCount} /> {fileCount === 1 ? "file" : "files"}
+      <span className="cursor-pointer hover:underline" onClick={handleClick}>
+        found <AnimatedNumber value={matchCount} />{" "}
+        {matchCount === 1 ? "match" : "matches"} in{" "}
+        <AnimatedNumber value={fileCount} />{" "}
+        {fileCount === 1 ? "file" : "files"}
       </span>
     </div>
   );
@@ -362,10 +361,7 @@ function CatOutput({ output }: { output: any }) {
   return (
     <div className="flex flex-row gap-[1ch] font-mono text-sm">
       <span>⎿</span>
-      <span
-        className="cursor-pointer hover:underline"
-        onClick={handleClick}
-      >
+      <span className="cursor-pointer hover:underline" onClick={handleClick}>
         read file ✔︎
       </span>
     </div>
