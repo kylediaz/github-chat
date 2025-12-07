@@ -21,9 +21,14 @@ export interface WindowState {
   isMaximized: boolean;
 }
 
+type OpenWindowParams = Omit<WindowState, "id" | "zIndex" | "x" | "y"> & {
+  x?: number;
+  y?: number;
+};
+
 interface WindowContextType {
   windows: WindowState[];
-  openWindow: (window: Omit<WindowState, "id" | "zIndex">) => string;
+  openWindow: (window: OpenWindowParams) => string;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string) => void;
   maximizeWindow: (id: string) => void;
@@ -55,20 +60,51 @@ export function WindowProvider({ children }: WindowProviderProps) {
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [nextZIndex, setNextZIndex] = useState(1000);
 
+  const getCenteredPosition = useCallback(
+    (width: number, height: number) => {
+      const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1200;
+      const screenHeight = typeof window !== "undefined" ? window.innerHeight : 800;
+
+      const baseX = Math.max(0, (screenWidth - width) / 2);
+      const baseY = Math.max(0, (screenHeight - height) / 2);
+
+      const radius = 30;
+      const steps = 8;
+      const angle = (windows.length % steps) * ((2 * Math.PI) / steps);
+
+      return {
+        x: baseX + Math.cos(angle) * radius,
+        y: baseY + Math.sin(angle) * radius,
+      };
+    },
+    [windows.length],
+  );
+
   const openWindow = useCallback(
-    (windowData: Omit<WindowState, "id" | "zIndex">) => {
+    (windowData: OpenWindowParams) => {
       const id = `window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      const screenWidth = typeof window !== "undefined" ? window.innerWidth : 1200;
+      const isMobile = screenWidth < 768;
+
+      const position =
+        windowData.x !== undefined && windowData.y !== undefined
+          ? { x: windowData.x, y: windowData.y }
+          : getCenteredPosition(windowData.width, windowData.height);
+
       const newWindow: WindowState = {
         ...windowData,
+        ...position,
         id,
         zIndex: nextZIndex,
+        isMaximized: isMobile ? true : windowData.isMaximized,
       };
 
       setWindows((prev) => [...prev, newWindow]);
       setNextZIndex((prev) => prev + 1);
       return id;
     },
-    [nextZIndex],
+    [nextZIndex, getCenteredPosition],
   );
 
   const closeWindow = useCallback((id: string) => {

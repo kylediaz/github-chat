@@ -244,10 +244,8 @@ function SearchOutput({ output }: { output: any }) {
           }}
         />
       ),
-      x: 550 + index * 30,
-      y: 50 + index * 30,
       width: 600,
-      height: 600,
+      height: 500,
       isMinimized: false,
       isMaximized: false,
     });
@@ -301,8 +299,6 @@ function GrepOutput({ output }: { output: any }) {
     openWindow({
       title: `grep results (${matchCount} matches)`,
       content: <VimWindow initialBuffer={grepOutput} />,
-      x: 550,
-      y: 50,
       width: 700,
       height: 500,
       isMinimized: false,
@@ -347,8 +343,6 @@ function CatOutput({ output }: { output: any }) {
     openWindow({
       title: fileName,
       content: <VimWindow initialBuffer={content} />,
-      x: 550,
-      y: 50,
       width: 700,
       height: 500,
       isMinimized: false,
