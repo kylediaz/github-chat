@@ -1,31 +1,51 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { UIDataTypes, UIMessage, UIMessagePart, UITools } from "ai";
-import { motion } from "framer-motion";
+import {
+  motion,
+  useMotionValue,
+  useTransform,
+  animate,
+} from "framer-motion";
 
 import { CodeBlock } from "@/components/chat/code-block";
 import { Reasoning } from "./reasoning";
 import { MemoizedMarkdown } from "@/components/chat/memoized-markdown";
 import { useWindows } from "@/contexts/window-context";
-import { ToolCallWindow } from "@/components/windows/tool-call-window";
 import { SearchResultWindow } from "@/components/windows/search-result-window";
+import { VimWindow } from "@/components/windows/vim-window";
 import { AnimatedEllipsis } from "@/components/shared/misc";
 
 export interface MessageProps {
   message: UIMessage;
 }
 
-function parseToolOutput(output: any): { searchResults: any | null } {
-  if (output?.results && Array.isArray(output.results)) {
-    return { searchResults: { results: output.results } };
-  }
-  return { searchResults: null };
+function AnimatedNumber({ value }: { value: number }) {
+  const motionValue = useMotionValue(0);
+  const rounded = useTransform(motionValue, (v) => Math.round(v));
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    const controls = animate(motionValue, value, {
+      duration: 0.3,
+      ease: "easeOut",
+    });
+    return controls.stop;
+  }, [motionValue, value]);
+
+  useEffect(() => {
+    return rounded.on("change", (v) => setDisplay(v));
+  }, [rounded]);
+
+  return <span>{display}</span>;
 }
 
 function formatParameterValue(value: any): string {
+  if (typeof value === "string") {
+    return `"${value}"`;
+  }
   if (Array.isArray(value)) {
     return JSON.stringify(value);
   }
-
   return String(value);
 }
 
@@ -129,33 +149,12 @@ function ToolInvocation({
   const toolCallId = partAny.toolCallId;
   const state = partAny.state;
 
-  const { openWindow } = useWindows();
-
-  const { searchResults } = parseToolOutput(output);
-  const isLoading = !output || state !== "output-available" || !searchResults;
-
-  const handleToolCallClick = () => {
-    openWindow({
-      title: `${toolName} - Tool Call Details`,
-      content: (
-        <ToolCallWindow toolName={toolName} input={input} output={output} />
-      ),
-      x: 650,
-      y: 100,
-      width: 600,
-      height: 600,
-      isMinimized: false,
-      isMaximized: false,
-    });
-  };
+  const isLoading = !output || state !== "output-available";
 
   return (
     <div key={toolCallId} className="mb-2">
       {input && (
-        <div
-          className="font-mono text-sm flex flex-row items-center cursor-pointer hover:underline max-w-full"
-          onClick={handleToolCallClick}
-        >
+        <div className="font-mono text-sm flex flex-row items-center max-w-full">
           <div className="font-medium shrink-0">{toolName}</div>
           <div className="shrink-0">{"("}</div>
           <ToolCallParameters input={input} />
@@ -166,10 +165,10 @@ function ToolInvocation({
       {isLoading ? (
         <div className="flex flex-row gap-[1ch] font-mono text-sm">
           <span>⎿</span>
-          <AnimatedEllipsis className="font-mono" />
+          <span>loading<AnimatedEllipsis /></span>
         </div>
       ) : (
-        searchResults && <SearchResults results={searchResults} />
+        <ToolOutput toolName={toolName} output={output} />
       )}
     </div>
   );
@@ -198,25 +197,37 @@ function ToolCallParameters({ input }: { input: Record<string, any> }) {
   );
 }
 
-function SearchResults({
-  results,
-  maxVisibleResults = 3,
-}: {
-  results: any;
-  maxVisibleResults?: number;
-}) {
-  const { openWindow } = useWindows();
-  const [showAll, setShowAll] = useState(false);
-
-  if (!results?.results?.length) {
-    return <div>No search results found</div>;
+function ToolOutput({ toolName, output }: { toolName: string; output: any }) {
+  switch (toolName) {
+    case "search":
+      return <SearchOutput output={output} />;
+    case "grep":
+      return <GrepOutput output={output} />;
+    case "cat":
+      return <CatOutput output={output} />;
+    default:
+      return (
+        <div className="flex flex-row gap-[1ch] font-mono text-sm">
+          <span>⎿</span>
+          <span className="text-zinc-500">done</span>
+        </div>
+      );
   }
+}
 
-  const resultsArray = results.results;
-  const visibleResults = showAll
-    ? resultsArray
-    : resultsArray.slice(0, maxVisibleResults);
-  const hiddenCount = resultsArray.length - maxVisibleResults;
+function SearchOutput({ output }: { output: any }) {
+  const { openWindow } = useWindows();
+  const [expanded, setExpanded] = useState(false);
+
+  const results = output?.results;
+  if (!results?.length) {
+    return (
+      <div className="flex flex-row gap-[1ch] font-mono text-sm">
+        <span>⎿</span>
+        <span className="text-zinc-500">no results</span>
+      </div>
+    );
+  }
 
   const handleResultClick = (result: any, index: number) => {
     const fileName =
@@ -242,45 +253,127 @@ function SearchResults({
     });
   };
 
+  if (!expanded) {
+    return (
+      <div className="flex flex-row gap-[1ch] font-mono text-sm">
+        <span>⎿</span>
+        <span
+          className="cursor-pointer hover:underline"
+          onClick={() => setExpanded(true)}
+        >
+          found <AnimatedNumber value={results.length} /> {results.length === 1 ? "result" : "results"}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-row gap-[1ch] font-mono text-sm max-w-full">
       <span className="shrink-0">⎿</span>
       <div className="flex-1 min-w-0">
-        {visibleResults.map((result: any, index: number) => {
-          const shouldAnimate = !showAll || index < maxVisibleResults;
-          const ResultComponent = shouldAnimate ? motion.div : "div";
-          const animationProps = shouldAnimate
-            ? {
-                initial: { opacity: 0 },
-                animate: { opacity: 1 },
-                transition: { delay: index * 0.05, duration: 0.01 },
-              }
-            : {};
-
-          return (
-            <ResultComponent
-              key={index}
-              className="truncate w-full cursor-pointer hover:underline"
-              onClick={() => handleResultClick(result, index)}
-              {...animationProps}
-            >
-              {result.path || "unknown"}
-            </ResultComponent>
-          );
-        })}
-
-        {!showAll && hiddenCount > 0 && (
+        {results.map((result: any, index: number) => (
           <motion.div
-            className="cursor-pointer hover:underline text-gray-500"
-            onClick={() => setShowAll(true)}
+            key={index}
+            className="truncate w-full cursor-pointer hover:underline"
+            onClick={() => handleResultClick(result, index)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: visibleResults.length * 0.05, duration: 0.01 }}
+            transition={{ delay: index * 0.03, duration: 0.01 }}
           >
-            and {hiddenCount} more...
+            {result.path || "unknown"}
           </motion.div>
-        )}
+        ))}
       </div>
+    </div>
+  );
+}
+
+function GrepOutput({ output }: { output: any }) {
+  const { openWindow } = useWindows();
+
+  const matchCount = output?.matchCount ?? 0;
+  const fileCount = output?.fileCount ?? 0;
+  const grepOutput = output?.output ?? "";
+
+  const handleClick = () => {
+    if (matchCount === 0) return;
+
+    openWindow({
+      title: `grep results (${matchCount} matches)`,
+      content: <VimWindow initialBuffer={grepOutput} />,
+      x: 550,
+      y: 50,
+      width: 700,
+      height: 500,
+      isMinimized: false,
+      isMaximized: false,
+    });
+  };
+
+  if (matchCount === 0) {
+    return (
+      <div className="flex flex-row gap-[1ch] font-mono text-sm">
+        <span>⎿</span>
+        <span className="text-zinc-500">no matches</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-row gap-[1ch] font-mono text-sm">
+      <span>⎿</span>
+      <span
+        className="cursor-pointer hover:underline"
+        onClick={handleClick}
+      >
+        found <AnimatedNumber value={matchCount} /> {matchCount === 1 ? "match" : "matches"} in <AnimatedNumber value={fileCount} /> {fileCount === 1 ? "file" : "files"}
+      </span>
+    </div>
+  );
+}
+
+function CatOutput({ output }: { output: any }) {
+  const { openWindow } = useWindows();
+
+  const hasError = !!output?.error;
+  const path = output?.path ?? "";
+  const content = output?.content ?? "";
+
+  const handleClick = () => {
+    if (hasError) return;
+
+    const fileName = path.split("/").pop() || "file";
+
+    openWindow({
+      title: fileName,
+      content: <VimWindow initialBuffer={content} />,
+      x: 550,
+      y: 50,
+      width: 700,
+      height: 500,
+      isMinimized: false,
+      isMaximized: false,
+    });
+  };
+
+  if (hasError) {
+    return (
+      <div className="flex flex-row gap-[1ch] font-mono text-sm">
+        <span>⎿</span>
+        <span className="text-red-500">file not found ✖︎</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-row gap-[1ch] font-mono text-sm">
+      <span>⎿</span>
+      <span
+        className="cursor-pointer hover:underline"
+        onClick={handleClick}
+      >
+        read file ✔︎
+      </span>
     </div>
   );
 }
