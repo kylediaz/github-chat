@@ -2,6 +2,8 @@
 
 Chat with any GitHub repository using AI.
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fchroma-core%2Fgithub-sync-demo&env=CHROMA_API_KEY,CHROMA_TENANT,CHROMA_DATABASE,OPENAI_API_KEY,DATABASE_URL,GITHUB_TOKEN&project-name=chat-with-github&repository-name=chat-with-github&demo-title=Chat%20With%20Github&demo-description=Chat%20with%20any%20Github%20repository%20using%20AI&demo-url=github-sync-demo.vercel.app)
+
 ![preview](doc/1203.gif)
 
 ## How It Works
