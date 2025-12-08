@@ -1,5 +1,7 @@
 import { registerOTel } from "@vercel/otel";
 
 export function register() {
-  registerOTel({ serviceName: "github-chat-app" });
+  if (process.env.VERCEL) {
+    registerOTel({ serviceName: "github-chat-app" });
+  }
 }

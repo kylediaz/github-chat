@@ -353,7 +353,7 @@ function CatOutput({ output }: { output: any }) {
     return (
       <div className="flex flex-row gap-[1ch] font-mono text-sm">
         <span>⎿</span>
-        <span className="text-red-500">file not found ✖︎</span>
+        <span className="text-zinc-500">file not found ✖︎</span>
       </div>
     );
   }

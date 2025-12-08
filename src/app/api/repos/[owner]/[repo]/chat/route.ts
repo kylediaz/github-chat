@@ -29,9 +29,8 @@ import type { QueryResult } from "@/types/chroma";
 
 validateEnv();
 
-const MODEL = "gpt-5-mini";
-const MAX_SEARCH_RESULTS = 10;
-const MAX_TOOL_STEPS = 15;
+const MAX_SEARCH_RESULTS = 7;
+const MAX_TOOL_STEPS = 20;
 
 export const maxDuration = 30;
 
@@ -158,6 +157,8 @@ function createSearchTool(collectionName: string) {
   });
 }
 
+const MAX_CAT_LINES = 1000;
+
 function createCatTool(collectionName: string) {
   return createTool({
     description: "Read the full contents of a file by its path.",
@@ -168,6 +169,14 @@ function createCatTool(collectionName: string) {
       const content = await getFileContents(collectionName, path);
       if (content === null) {
         return { error: `File not found: ${path}` };
+      }
+      const lines = content.split("\n");
+      if (lines.length > MAX_CAT_LINES) {
+        const remaining = lines.length - MAX_CAT_LINES;
+        const truncated =
+          lines.slice(0, MAX_CAT_LINES).join("\n") +
+          `\n\n... and ${remaining} more lines`;
+        return { path, content: truncated };
       }
       return { path, content };
     },
@@ -264,7 +273,7 @@ export async function POST(
     }
 
     const result = streamText({
-      model: openai(MODEL),
+      model: openai("gpt-5"),
       providerOptions: {
         openai: { textVerbosity: "low" },
       },
